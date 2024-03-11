@@ -23,8 +23,8 @@
 #define SOCK_MTP 0x8
 #define MAX_BUFFER_SIZE 10
 #define MAX_WINDOW_SIZE 5
-#define MAX_RETRIES 5
-#define TIMEOUT 5000
+#define  ACK_TYPE 'A'
+#define  DATA_TYPE 'D'
 
 sendBuffer *sendBuf;
 recvBuffer *recvBuf;
@@ -207,6 +207,7 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags,
     Message *msg = (Message *)malloc(sizeof(Message));
     msg->sequence_number = msg_cntr;
     msg_cntr++;
+    msg->type = DATA_TYPE;
     memcpy(msg->data, buf, len);
     // create a send packet
     sendPkt *spkt = (sendPkt *)malloc(sizeof(sendPkt));
@@ -215,6 +216,9 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags,
     // add the packet to the send buffer
     sendBuf->buffer[sendBuf->rear] = spkt;
     sendBuf->rear = (sendBuf->rear + 1) % sendBuf->size;
+    
+
+
    
     return 0;
 }

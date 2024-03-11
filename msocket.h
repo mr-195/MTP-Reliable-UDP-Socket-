@@ -23,6 +23,7 @@
 typedef struct
 {
     int sequence_number;
+    char type; // 'A' for ACK, 'D' for Data
     char data[1024]; // Assuming message size is 1 KB
     // Add other metadata fields as needed
 } Message;
