@@ -23,20 +23,24 @@
 #define SOCK_MTP 0x8
 #define MAX_BUFFER_SIZE 10
 #define MAX_WINDOW_SIZE 5
-#define  ACK_TYPE 'A'
-#define  DATA_TYPE 'D'
+#define ACK_TYPE 'A'
+#define DATA_TYPE 'D'
 #define ENOTBOUND 1
+#define TYPE_SIZE sizeof(char)
+#define MSG_ID_SIZE sizeof(short)
 
 sendBuffer *sendBuf;
 recvBuffer *recvBuf;
 Sender_Window *swnd;
 Receiver_Window *rwnd;
 pthread_t tid_R, tid_S;
+int flag_nospace = 0;
+int last_ack_seq = -1; // last acknowledged sequence number
 // global errorno
 int ERROR;
 void *thread_R(void *arg);
 void *thread_S(void *arg);
-int msg_cntr=0; // message counter to keep track of the next sequence number
+int msg_cntr = 0; // message counter to keep track of the next sequence number
 struct sockaddr_in dest_addr;
 
 void init_sender_buffer()
@@ -85,6 +89,103 @@ void cleanup()
     free(recvBuf);
     free(swnd);
     free(rwnd);
+}
+// thread R
+void *thread_R(void *arg)
+{
+    int sockfd = *((int *)arg);
+    fd_set readfds;
+    struct timeval timeout;
+    int maxfd = sockfd + 1;
+    while (1)
+    {
+        FD_ZERO(&readfds);
+        FD_SET(sockfd, &readfds);
+        timeout.tv_sec = 1;
+        timeout.tv_usec = 0;
+        int status = select(maxfd, &readfds, NULL, NULL, &timeout);
+        if (status < 0)
+        {
+            // set global ERROR to EAGAIN
+            ERROR = EAGAIN;
+            errno = EAGAIN;
+            return NULL;
+        }
+        else if(status > 0)
+        {
+            // wait for a message to come
+            recvPkt *rpkt = (recvPkt *)malloc(sizeof(recvPkt));
+            // from address is the dest_addr 
+            rpkt->from_addr = dest_addr;
+            int len = sizeof(rpkt->from_addr);
+            int n = recvfrom(sockfd, rpkt->message.data, sizeof(rpkt->message.data), 0, (struct sockaddr *)&rpkt->from_addr, &len);
+            if (n < 0)
+            {
+                // set global ERROR to EAGAIN
+                ERROR = EAGAIN;
+                errno = EAGAIN;
+                return NULL;
+            }
+            else if (n > 0)
+            {
+                // check if the message is an ACK
+                if (rpkt->message.data[0] == ACK_TYPE)
+                {
+                    // update the sender window
+                    int ack_seq;
+                    memcpy(&ack_seq, rpkt->message.data + TYPE_SIZE, MSG_ID_SIZE);
+                    for (int i = 0; i < swnd->window_size; i++)
+                    {
+                        if (swnd->window[i] != NULL && swnd->window[i]->packet.message.sequence_number == ack_seq)
+                        {
+                            free(swnd->window[i]);
+                            swnd->window[i] = NULL;
+                            break;
+                        }
+                    }
+                }
+                else if (rpkt->message.data[0] == DATA_TYPE)
+                {
+                    // add the message to the receiver buffer
+                    recvBuf->buffer[recvBuf->rear] = rpkt;
+                    recvBuf->rear = (recvBuf->rear + 1) % recvBuf->size;
+                    // send an ACK
+                    Message *ack = (Message *)malloc(sizeof(Message));
+                    ack->type = ACK_TYPE;
+                    ack->sequence_number = rpkt->message.sequence_number;
+                    last_ack_seq = rpkt->message.sequence_number;
+                    ack->data[0] = ACK_TYPE;
+                    short t = htons(ack->sequence_number);
+                    memcpy(ack->data + TYPE_SIZE, &t, MSG_ID_SIZE);
+                    sendto(sockfd, ack->data, sizeof(ack->data), 0, (struct sockaddr *)&rpkt->from_addr, sizeof(rpkt->from_addr));
+                    // set flag nospace if the available space at the receive buffer is zero
+                    if (recvBuf->front == recvBuf->rear)
+                    {
+                        // set flag nospace
+                        flag_nospace = 1;
+                    }
+                }
+                else // if there is a timeout 
+                {
+                    // check if the flag nospace was set but now there is space available in the receive buffer
+                    if (flag_nospace == 1 && recvBuf->front != recvBuf->rear)
+                    {
+                        // send a duplicate ACK message with the last acknowledged sequence number but with the updated rwnd size
+                        Message *ack = (Message *)malloc(sizeof(Message));
+                        ack->type = ACK_TYPE;
+                        // get the last acknowledged sequence number
+                        ack->sequence_number = last_ack_seq;
+                        ack->data[0] = ACK_TYPE;
+                        short t = htons(ack->sequence_number);
+                        memcpy(ack->data + TYPE_SIZE, &t, MSG_ID_SIZE);
+                        sendto(sockfd, ack->data, sizeof(ack->data), 0, (struct sockaddr *)&rpkt->from_addr, sizeof(rpkt->from_addr));
+                        // reset the flag
+                        flag_nospace = 0;
+                    }
+                }
+            }
+        }
+    }
 }
 
 // initilaize element of Sender Window
@@ -201,7 +302,11 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags,
     msg->sequence_number = msg_cntr;
     msg_cntr++;
     msg->type = DATA_TYPE;
-    memcpy(msg->data, buf, len);
+    // add the DATA_TYPE and Sequence number to the message
+    msg->data[0] = DATA_TYPE;
+    short seq_buf = htons(msg->sequence_number);
+    memcpy(msg->data + TYPE_SIZE, &seq_buf, MSG_ID_SIZE);
+    memcpy(msg->data + TYPE_SIZE + MSG_ID_SIZE, buf, len);
     // create a send packet
     sendPkt *spkt = (sendPkt *)malloc(sizeof(sendPkt));
     spkt->message = *msg;
@@ -217,7 +322,7 @@ message from the table. If not, it returns with -1 and sets a global error varia
 ENOMSG, indicating no message has been available in the message buffer. So the
 m_recvfrom call is non-blocking.*/
 ssize_t m_recvfrom(int sockfd, void *buf, size_t len, int flags,
-               struct sockaddr *client_addr, socklen_t *addrlen)
+                   struct sockaddr *client_addr, socklen_t *addrlen)
 {
     // check if the receive buffer is empty
     if (recvBuf->front == recvBuf->rear)
