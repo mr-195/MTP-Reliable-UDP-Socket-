@@ -25,6 +25,7 @@
 #define MAX_WINDOW_SIZE 5
 #define  ACK_TYPE 'A'
 #define  DATA_TYPE 'D'
+#define ENOTBOUND 1
 
 sendBuffer *sendBuf;
 recvBuffer *recvBuf;
@@ -86,13 +87,6 @@ void cleanup()
     free(rwnd);
 }
 
-// void send_message(Message *msg, struct sockaddr_in to_addr) {
-//     sendPkt *pkt = (sendPkt *)malloc(sizeof(sendPkt));
-//     pkt->message = *msg;
-//     pkt->to_addr = to_addr;
-//     sendBuf->buffer[sendBuf->rear] = pkt;
-//     sendBuf->rear = (sendBuf->rear + 1) % sendBuf->size;
-// }
 // initilaize element of Sender Window
 void init_unAckPkt(unAckPkt *pkt, sendPkt *spkt)
 {
@@ -191,7 +185,6 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags,
     if (addr->sin_family != dest_addr.sin_family || addr->sin_port != dest_addr.sin_port || addr->sin_addr.s_addr != dest_addr.sin_addr.s_addr)
     {
         // set global ERROR to ENOTBOUND
-        ERROR = ENOTBOUND;
         errno = ENOTBOUND;
         return -1;
     }
@@ -216,9 +209,49 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags,
     // add the packet to the send buffer
     sendBuf->buffer[sendBuf->rear] = spkt;
     sendBuf->rear = (sendBuf->rear + 1) % sendBuf->size;
-    
-
-
-   
     return 0;
+}
+/* m_recvfrom – looks up the receiver-side message buffer to see if any message is
+already received. If yes, it returns the first message (in-order) and deletes that
+message from the table. If not, it returns with -1 and sets a global error variable to
+ENOMSG, indicating no message has been available in the message buffer. So the
+m_recvfrom call is non-blocking.*/
+ssize_t m_recvfrom(int sockfd, void *buf, size_t len, int flags,
+               struct sockaddr *client_addr, socklen_t *addrlen)
+{
+    // check if the receive buffer is empty
+    if (recvBuf->front == recvBuf->rear)
+    {
+        // set global ERROR to ENOMSG
+        ERROR = ENOMSG;
+        errno = ENOMSG;
+        return -1;
+    }
+    // get the first message from the receive buffer
+    recvPkt *rpkt = recvBuf->buffer[recvBuf->front];
+    // delete the message from the buffer by setting it to NULL
+    recvBuf->buffer[recvBuf->front] = NULL;
+    // update the front of the buffer
+    recvBuf->front = (recvBuf->front + 1) % recvBuf->size;
+    // copy the message to the buffer
+    memcpy(buf, rpkt->message.data, len);
+    // copy the address to the client address
+    struct sockaddr_in *addr = (struct sockaddr_in *)client_addr;
+    *addr = rpkt->from_addr;
+    // return size of the message
+    return sizeof(rpkt->message.data);
+}
+int m_close(int sockfd)
+{
+    // close the socket
+    int status = close(sockfd);
+    // cancel the threads
+    pthread_cancel(tid_R);
+    pthread_cancel(tid_S);
+    // wait for threads
+    pthread_join(tid_R, NULL);
+    pthread_join(tid_S, NULL);
+    // cleanup the memory
+    cleanup();
+    return status;
 }
