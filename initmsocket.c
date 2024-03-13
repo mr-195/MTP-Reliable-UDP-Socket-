@@ -72,6 +72,19 @@ void init_process() // process P
     sharedMemory *SM;
     int shmid_A = shmget(IPC_PRIVATE, MAX_SOCKETS * sizeof(sharedMemory), IPC_CREAT | 0666);
     SM = (sharedMemory *)shmat(shmid_A, 0, 0);
+    SOCK_INFO *sockinfo;
+    int shmid_sockinfo = shmget(IPC_PRIVATE,sizeof(SOCK_INFO), IPC_CREAT | 0666);
+    sockinfo = (SOCK_INFO *)shmat(shmid_sockinfo, 0, 0);
+    // initilaize the sockinfo structure
+    sockinfo->sock_id = 0;
+    sockinfo->ip_address = NULL;
+    sockinfo->port = 0;
+    // create two semaphores 1 and 2 sem1 and sem2
+    int sem1 = semget(IPC_PRIVATE, 1, IPC_CREAT | 0666);
+    int sem2 = semget(IPC_PRIVATE, 1, IPC_CREAT | 0666);
+    // initialize the semaphores
+    semctl(sem1, 0, SETVAL, 0);
+    semctl(sem2, 0, SETVAL, 0);
     // initialize shared memory
     for (int i = 0; i < MAX_SOCKETS; i++)
     {
@@ -94,14 +107,8 @@ void init_process() // process P
         init_Receiver_Window(MAX_WINDOW_SIZE, SM[i].receiver_window);
 
     }
-    SOCK_INFO *sockinfo;
-    int shmid_sockinfo = shmget(IPC_PRIVATE,sizeof(SOCK_INFO), IPC_CREAT | 0666);
-    sockinfo = (SOCK_INFO *)shmat(shmid_sockinfo, 0, 0);
-    // initilaize the sockinfo structure
-    sockinfo->sock_id = 0;
-    sockinfo->ip_address = NULL;
-    sockinfo->port = 0;
-    // create two semaphores 1 and 2
+  
+
 
     // create thread R
     pthread_t thread_R;
