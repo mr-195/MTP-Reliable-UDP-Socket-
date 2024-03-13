@@ -11,6 +11,10 @@
 #define MAX_SOCKETS 25
 void *thread_R(void *arg);
 void *thread_S(void *arg);
+#define P(s) semop(s, &pop, 1) /* pop is the structure we pass for doing \
+                  the P(s) operation */
+#define V(s) semop(s, &vop, 1) /* vop is the structure we pass for doing \
+                  the V(s) operation */
 
 void init_sender_buffer(sendBuffer *sendBuf)
 {
@@ -49,21 +53,16 @@ void init_Receiver_Window(int rwnd_size, Receiver_Window *rwnd)
     }
 }
 
-
 // thread R
 void *thread_R(void *arg)
 {
     sharedMemory *SM = (sharedMemory *)arg;
     // create and initialize semaphore set names
-
-
 }
 void *thread_S(void *arg)
 {
     sharedMemory *SM = (sharedMemory *)arg;
     // create and initialize semaphore set names
-
-
 }
 // initializes two threads R and S, and a shared memory SM for the process P
 void init_process() // process P
@@ -73,7 +72,7 @@ void init_process() // process P
     int shmid_A = shmget(IPC_PRIVATE, MAX_SOCKETS * sizeof(sharedMemory), IPC_CREAT | 0666);
     SM = (sharedMemory *)shmat(shmid_A, 0, 0);
     SOCK_INFO *sockinfo;
-    int shmid_sockinfo = shmget(IPC_PRIVATE,sizeof(SOCK_INFO), IPC_CREAT | 0666);
+    int shmid_sockinfo = shmget(IPC_PRIVATE, sizeof(SOCK_INFO), IPC_CREAT | 0666);
     sockinfo = (SOCK_INFO *)shmat(shmid_sockinfo, 0, 0);
     // initilaize the sockinfo structure
     sockinfo->sock_id = 0;
@@ -85,6 +84,7 @@ void init_process() // process P
     // initialize the semaphores
     semctl(sem1, 0, SETVAL, 0);
     semctl(sem2, 0, SETVAL, 0);
+    struct sembuf pop, vop;
     // initialize shared memory
     for (int i = 0; i < MAX_SOCKETS; i++)
     {
@@ -105,10 +105,13 @@ void init_process() // process P
         // initialize receiver window
         SM[i].receiver_window = (Receiver_Window *)malloc(sizeof(Receiver_Window));
         init_Receiver_Window(MAX_WINDOW_SIZE, SM[i].receiver_window);
-
     }
-  
-
+    pop.sem_num = 0;
+    pop.sem_op = -1;
+    pop.sem_flg = 0;
+    vop.sem_num = 0;
+    vop.sem_op = 1;
+    vop.sem_flg = 0;
 
     // create thread R
     pthread_t thread_R;
@@ -122,6 +125,48 @@ void init_process() // process P
     // wait for threads to finish
     pthread_join(thread_R, NULL);
     pthread_join(thread_S, NULL);
+
+    while (1)
+    {
+        // wait for sem1
+        P(sem1);
+        // look at SOCK_INFO and find the socket id
+        // check if all fields are 0 it is a m_socket call
+        if (sockinfo->sock_id == 0 && sockinfo->ip_address == NULL && sockinfo->port == 0 && sockinfo->error_no == 0)
+        {
+            // create a new socket
+            int sock_id = socket(AF_INET, SOCK_DGRAM, 0);
+            if (sock_id == -1)
+            {
+                printf("Error creating socket\n");
+                sockinfo->sock_id = -1;
+                sockinfo->error_no = errno;
+                //
+            }
+            sockinfo->sock_id = sock_id;
+            // signal sem2
+            V(sem2);
+        }
+
+        else if (sockinfo->sock_id != 0 && sockinfo->ip_address != NULL && sockinfo->port != 0) // it is a m_bind call
+        {
+            // make a bind call
+            struct sockaddr_in server;
+            server.sin_family = AF_INET;
+            server.sin_port = htons(sockinfo->port);
+            server.sin_addr.s_addr = inet_addr(sockinfo->ip_address);
+            int bind_status = bind(sockinfo->sock_id, (struct sockaddr *)&server, sizeof(server));
+            if (bind_status == -1)
+            {
+                sockinfo->sock_id = -1;
+                sockinfo->error_no = errno;
+            }
+            // signal sem2
+            V(sem2);
+        }
+    }
+    // if yes then create a new socket
+    // else use the existing socket
 }
 
 int main()

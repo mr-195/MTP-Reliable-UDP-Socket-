@@ -83,11 +83,6 @@ typedef struct
 } Receiver_Window;
 
 // element of Shared Memory
-typedef struct
-{
-    int is_free;                      // Indicates whether the MTP socket is free or allotted
-    pid_t process_id;                 // Process ID of the process that created the MTP socket
-// element of Shared Memory 
 typedef struct {
     int is_free;       // Indicates whether the MTP socket is free or allotted
     pid_t process_id;                   // Process ID of the process that created the MTP socket
