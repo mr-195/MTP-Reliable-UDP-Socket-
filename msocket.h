@@ -3,6 +3,7 @@
 
 #define MAX_WINDOW_SIZE 5
 #define MAX_BUFFER_SIZE 10
+#define MAX_SOCKETS 25
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -76,6 +77,18 @@ typedef struct {
     recvPkt *window[MAX_WINDOW_SIZE];
 } Receiver_Window;
 
+// element of Shared Memory 
+typedef struct {
+    int is_free;       // Indicates whether the MTP socket is free or allotted
+    int process_id;                   // Process ID of the process that created the MTP socket
+    int udp_socket_id;                // Corresponding UDP socket ID
+    char *ip_address;              // IP address of the other end of the MTP socket (assuming IPv4)
+    int port;                         // Port number of the other end of the MTP socket
+    sendBuffer *send_buffer;          // Send Buffer
+    recvBuffer *recv_buffer;          // Receive Buffer
+    Sender_Window *sender_window;     // Sender Window
+    Receiver_Window *receiver_window; // Receiver Window
+} sharedMemory;
 // Functions available to application
 
 int m_socket(int domain, int type, int protocol);
