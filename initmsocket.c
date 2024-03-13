@@ -11,6 +11,10 @@
 #define MAX_SOCKETS 25
 void *thread_R(void *arg);
 void *thread_S(void *arg);
+int key_SM = 1;
+int key_sockinfo = 2;
+int key_sem1 = 3;
+int key_sem2 = 4;
 #define P(s) semop(s, &pop, 1) /* pop is the structure we pass for doing \
                   the P(s) operation */
 #define V(s) semop(s, &vop, 1) /* vop is the structure we pass for doing \
@@ -52,7 +56,19 @@ void init_Receiver_Window(int rwnd_size, Receiver_Window *rwnd)
         rwnd->window[i] = NULL;
     }
 }
+// initilaize element of Sender Window
+void init_unAckPkt(unAckPkt *pkt, sendPkt *spkt)
+{
+    pkt->packet = *spkt;
+    gettimeofday(&pkt->time, NULL);
+}
 
+// initialize the receiver packet
+void init_recvPkt(recvPkt *pkt, Message *msg, struct sockaddr_in from_addr)
+{
+    pkt->message = *msg;
+    pkt->from_addr = from_addr;
+}
 // thread R
 void *thread_R(void *arg)
 {
@@ -69,18 +85,18 @@ void init_process() // process P
 {
     // create shared memory for A
     sharedMemory *SM;
-    int shmid_A = shmget(IPC_PRIVATE, MAX_SOCKETS * sizeof(sharedMemory), IPC_CREAT | 0666);
+    int shmid_A = shmget(key_SM, MAX_SOCKETS * sizeof(sharedMemory), IPC_CREAT | 0666);
     SM = (sharedMemory *)shmat(shmid_A, 0, 0);
     SOCK_INFO *sockinfo;
-    int shmid_sockinfo = shmget(IPC_PRIVATE, sizeof(SOCK_INFO), IPC_CREAT | 0666);
+    int shmid_sockinfo = shmget(key_sockinfo, sizeof(SOCK_INFO), IPC_CREAT | 0666);
     sockinfo = (SOCK_INFO *)shmat(shmid_sockinfo, 0, 0);
     // initilaize the sockinfo structure
     sockinfo->sock_id = 0;
     sockinfo->ip_address = NULL;
     sockinfo->port = 0;
     // create two semaphores 1 and 2 sem1 and sem2
-    int sem1 = semget(IPC_PRIVATE, 1, IPC_CREAT | 0666);
-    int sem2 = semget(IPC_PRIVATE, 1, IPC_CREAT | 0666);
+    int sem1 = semget(key_sem1, 1, IPC_CREAT | 0666);
+    int sem2 = semget(key_sem1, 1, IPC_CREAT | 0666);
     // initialize the semaphores
     semctl(sem1, 0, SETVAL, 0);
     semctl(sem2, 0, SETVAL, 0);
@@ -165,8 +181,6 @@ void init_process() // process P
             V(sem2);
         }
     }
-    // if yes then create a new socket
-    // else use the existing socket
 }
 
 int main()

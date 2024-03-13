@@ -5,6 +5,9 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
+#include <sys/ipc.h>
+#include <sys/sem.h>
+#include <sys/shm.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <stdarg.h>
@@ -29,6 +32,14 @@
 #define TYPE_SIZE sizeof(char)
 #define MSG_ID_SIZE sizeof(short)
 #define T 1000
+#define P(s) semop(s, &pop, 1) /* pop is the structure we pass for doing \
+                  the P(s) operation */
+#define V(s) semop(s, &vop, 1) /* vop is the structure we pass for doing \
+                  the V(s) operation */
+int key_SM = 1;
+int key_sockinfo = 2;
+int key_sem1 = 3;
+int key_sem2 = 4;
 
 sendBuffer *sendBuf;
 recvBuffer *recvBuf;
@@ -43,7 +54,6 @@ void *thread_R(void *arg);
 void *thread_S(void *arg);
 int msg_cntr = 0; // message counter to keep track of the next sequence number
 struct sockaddr_in dest_addr;
-
 
 void cleanup()
 {
@@ -154,15 +164,6 @@ void *thread_R(void *arg)
     }
 }
 // thread S
-/* The thread S behaves in the following manner. It sleeps for some time ( < T/2 ), and wakes
-up periodically. On waking up, it first checks whether the message timeout period (T) is over
-(by computing the time difference between the current time and the time when the messages
-within the window were sent last) for the messages sent over any of the active MTP sockets.
-If yes, it retransmits all the messages within the current swnd for that MTP socket. It then
-checks the current swnd for each of the MTP sockets and determines whether there is a
-pending message from the sender-side message buffer that can be sent. If so, it sends that
-message through the UDP sendto() call for the corresponding UDP socket and updates the
-send timestamp .*/
 void *thread_S(void *arg)
 {
 
@@ -196,179 +197,205 @@ void *thread_S(void *arg)
                     }
                 }
             }
-            
         }
     }
 }
-    // initilaize element of Sender Window
-    void init_unAckPkt(unAckPkt * pkt, sendPkt * spkt)
-    {
-        pkt->packet = *spkt;
-        gettimeofday(&pkt->time, NULL);
-    }
 
-    // initialize the receiver packet
-    void init_recvPkt(recvPkt * pkt, Message * msg, struct sockaddr_in from_addr)
-    {
-        pkt->message = *msg;
-        pkt->from_addr = from_addr;
-    }
 
-    int m_socket(int domain, int type, int protocol)
+int m_socket(int domain, int type, int protocol)
+{
+    struct timeval seed;
+    gettimeofday(&seed, NULL);
+    srand(seed.tv_usec);
+    // attach to the shared memory SM
+    sharedMemory *SM;
+    int shmid_A = shmget(key_SM, MAX_SOCKETS * sizeof(sharedMemory), IPC_CREAT | 0666);
+    SM = (sharedMemory *)shmat(shmid_A, 0, 0);
+    SOCK_INFO *sockinfo;
+    int shmid_sockinfo = shmget(key_sockinfo, sizeof(SOCK_INFO), IPC_CREAT | 0666);
+    sockinfo = (SOCK_INFO *)shmat(shmid_sockinfo, 0, 0);
+    // attach to the semaphores create by the main thread
+    int sem1 = semget(key_sem1, 1, IPC_CREAT | 0666);
+    int sem2 = semget(key_sem2, 1, IPC_CREAT | 0666);
+
+    // check for type
+    if (type != SOCK_MTP)
     {
-        struct timeval seed;
-        gettimeofday(&seed, NULL);
-        srand(seed.tv_usec);
-        // check for type
-        if (type != SOCK_MTP)
+        // set global ERROR to ENOBUFS
+        ERROR = ENOBUFS;
+        errno = ENOBUFS;
+        return -1;
+    }
+    // create a socket
+    int sockfd = socket(domain, SOCK_DGRAM, protocol);
+
+    if (sockfd >= 0)
+    {
+        // check whether any free entry is available in the shared memory
+        int i;
+        for (i = 0; i < MAX_SOCKETS; i++)
+        {
+            if (SM[i].is_free == 1)
+            {
+                break;
+            }
+        }
+        if (i == MAX_SOCKETS)
         {
             // set global ERROR to ENOBUFS
             ERROR = ENOBUFS;
             errno = ENOBUFS;
             return -1;
         }
-        // create a socket
-        int sockfd = socket(domain, SOCK_DGRAM, protocol);
-        int *sockfd_arg = (int *)malloc(sizeof(int));
-        *sockfd_arg = sockfd;
-
-        if (sockfd >= 0)
+        else // found a free entry in the shared memory at index i
         {
-            // initialize the send buffer and senderwindow
-            sendBuf = (sendBuffer *)malloc(sizeof(sendBuffer));
-            recvBuf = (recvBuffer *)malloc(sizeof(recvBuffer));
-            swnd = (Sender_Window *)malloc(sizeof(Sender_Window));
-            rwnd = (Receiver_Window *)malloc(sizeof(Receiver_Window));
-            init_sender_buffer();
-            init_Sender_Window(MAX_WINDOW_SIZE);
-            init_recv_buffer();
-            init_Receiver_Window(MAX_WINDOW_SIZE);
-            // create a thread for sender R
-            if (pthread_create(&tid_R, NULL, thread_R, (void *)sockfd_arg) != 0)
+            struct sembuf pop, vop;
+            pop.sem_num = 0;
+            pop.sem_op = -1;
+            pop.sem_flg = 0;
+            vop.sem_num = 0;
+            vop.sem_op = 1;
+            vop.sem_flg = 0;
+            // signal the semaphore sem1
+            V(sem1);
+            // wait for the semaphore sem2
+            P(sem2);
+            // check sockid field of the sockinfo structure
+            if (sockinfo->sock_id != -1)
             {
-                // set global ERROR to EAGAIN
-                ERROR = EAGAIN;
-                errno = EAGAIN;
+                // reset the fields of the sockinfo structure
+                sockinfo->sock_id = 0;
+                sockinfo->ip_address = NULL;
+                sockinfo->port = 0;
+                // put sockfd in the SM table at index i
+                SM[i].udp_socket_id = sockfd;
+                return sockfd;
+            }
+            else
+            {
+                // reset the fields of the sockinfo structure
+                sockinfo->sock_id = 0;
+                sockinfo->ip_address = NULL;
+                sockinfo->port = 0;
+                // set global ERROR to ENOBUFS
+                ERROR = ENOBUFS;
+                errno = ENOBUFS;
                 return -1;
             }
-            // create a thread for receiver S
-            if (pthread_create(&tid_S, NULL, thread_S, (void *)sockfd_arg) != 0)
-            {
-                // set global ERROR to EAGAIN
-                ERROR = EAGAIN;
-                errno = EAGAIN;
-                return -1;
-            }
         }
-        return sockfd;
     }
-    // bind function
-    int m_bind(int sockfd, const char *source_ip, int source_port, const char *dest_ip, int dest_port)
+    else
     {
-        // bind the socket
-        struct sockaddr_in addr;
-        addr.sin_family = AF_INET;
-        addr.sin_port = htons(source_port);
-        addr.sin_addr.s_addr = inet_addr(source_ip);
-        int bind_status = bind(sockfd, (struct sockaddr *)&addr, sizeof(addr));
-        if (bind_status < 0)
-        {
-            // set global ERROR to EADDRINUSE
-            ERROR = EADDRINUSE;
-            errno = EADDRINUSE;
-            return -1;
-        }
-        // make destinaton address
+        // set global ERROR to ENOBUFS
+        ERROR = ENOBUFS;
+        errno = ENOBUFS;
+        return -1;
+    }
+    return sockfd;
+}
+// bind function
+int m_bind(int sockfd, const char *source_ip, int source_port, const char *dest_ip, int dest_port)
+{
+    // bind the socket
+    struct sockaddr_in addr;
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(source_port);
+    addr.sin_addr.s_addr = inet_addr(source_ip);
+    int bind_status = bind(sockfd, (struct sockaddr *)&addr, sizeof(addr));
+    if (bind_status < 0)
+    {
+        // set global ERROR to EADDRINUSE
+        ERROR = EADDRINUSE;
+        errno = EADDRINUSE;
+        return -1;
+    }
+    // make destinaton address
 
-        dest_addr.sin_family = AF_INET;
-        dest_addr.sin_port = htons(dest_port);
-        dest_addr.sin_addr.s_addr = inet_addr(dest_ip);
-        return bind_status;
-    }
-    /* writes the message to the sender side message buffer if the destination
-    IP/Port matches with the bounded IP/Port as set through m_bind(). If not, it drops the
-    message, returns -1 and sets the global error variable to ENOTBOUND. If there is no
-    space is the send buffer, return -1 and set the global error variable to ENOBUFS. So
-    the m_sendto call is non-blocking. */
-    int m_sendto(int sockfd, const void *buf, size_t len, int flags,
-                 const struct sockaddr *client_addr, socklen_t addrlen)
+    dest_addr.sin_family = AF_INET;
+    dest_addr.sin_port = htons(dest_port);
+    dest_addr.sin_addr.s_addr = inet_addr(dest_ip);
+    return bind_status;
+}
+
+int m_sendto(int sockfd, const void *buf, size_t len, int flags,
+             const struct sockaddr *client_addr, socklen_t addrlen)
+{
+    // check if the destination address matches the bound address
+    struct sockaddr_in *addr = (struct sockaddr_in *)client_addr;
+    if (addr->sin_family != dest_addr.sin_family || addr->sin_port != dest_addr.sin_port || addr->sin_addr.s_addr != dest_addr.sin_addr.s_addr)
     {
-        // check if the destination address matches the bound address
-        struct sockaddr_in *addr = (struct sockaddr_in *)client_addr;
-        if (addr->sin_family != dest_addr.sin_family || addr->sin_port != dest_addr.sin_port || addr->sin_addr.s_addr != dest_addr.sin_addr.s_addr)
-        {
-            // set global ERROR to ENOTBOUND
-            errno = ENOTBOUND;
-            return -1;
-        }
-        // check if the send buffer is full
-        if (sendBuf->front == (sendBuf->rear + 1) % sendBuf->size)
-        {
-            // set global ERROR to ENOBUFS
-            ERROR = ENOBUFS;
-            errno = ENOBUFS;
-            return -1;
-        }
-        // create a message
-        Message *msg = (Message *)malloc(sizeof(Message));
-        msg->sequence_number = msg_cntr;
-        msg_cntr++;
-        msg->type = DATA_TYPE;
-        // add the DATA_TYPE and Sequence number to the message
-        msg->data[0] = DATA_TYPE;
-        short seq_buf = htons(msg->sequence_number);
-        memcpy(msg->data + TYPE_SIZE, &seq_buf, MSG_ID_SIZE);
-        memcpy(msg->data + TYPE_SIZE + MSG_ID_SIZE, buf, len);
-        // create a send packet
-        sendPkt *spkt = (sendPkt *)malloc(sizeof(sendPkt));
-        spkt->message = *msg;
-        spkt->to_addr = *addr;
-        // add the packet to the send buffer
-        sendBuf->buffer[sendBuf->rear] = spkt;
-        sendBuf->rear = (sendBuf->rear + 1) % sendBuf->size;
-        return 0;
+        // set global ERROR to ENOTBOUND
+        errno = ENOTBOUND;
+        return -1;
     }
-    /* m_recvfrom – looks up the receiver-side message buffer to see if any message is
-    already received. If yes, it returns the first message (in-order) and deletes that
-    message from the table. If not, it returns with -1 and sets a global error variable to
-    ENOMSG, indicating no message has been available in the message buffer. So the
-    m_recvfrom call is non-blocking.*/
-    int m_recvfrom(int sockfd, void *buf, size_t len, int flags,
-                   struct sockaddr *client_addr, socklen_t *addrlen)
+    // check if the send buffer is full
+    if (sendBuf->front == (sendBuf->rear + 1) % sendBuf->size)
     {
-        // check if the receive buffer is empty
-        if (recvBuf->front == recvBuf->rear)
-        {
-            // set global ERROR to ENOMSG
-            ERROR = ENOMSG;
-            errno = ENOMSG;
-            return -1;
-        }
-        // get the first message from the receive buffer
-        recvPkt *rpkt = recvBuf->buffer[recvBuf->front];
-        // delete the message from the buffer by setting it to NULL
-        recvBuf->buffer[recvBuf->front] = NULL;
-        // update the front of the buffer
-        recvBuf->front = (recvBuf->front + 1) % recvBuf->size;
-        // copy the message to the buffer
-        memcpy(buf, rpkt->message.data, len);
-        // copy the address to the client address
-        struct sockaddr_in *addr = (struct sockaddr_in *)client_addr;
-        *addr = rpkt->from_addr;
-        // return size of the message
-        return sizeof(rpkt->message.data);
+        // set global ERROR to ENOBUFS
+        ERROR = ENOBUFS;
+        errno = ENOBUFS;
+        return -1;
     }
-    int m_close(int sockfd)
+    // create a message
+    Message *msg = (Message *)malloc(sizeof(Message));
+    msg->sequence_number = msg_cntr;
+    msg_cntr++;
+    msg->type = DATA_TYPE;
+    // add the DATA_TYPE and Sequence number to the message
+    msg->data[0] = DATA_TYPE;
+    short seq_buf = htons(msg->sequence_number);
+    memcpy(msg->data + TYPE_SIZE, &seq_buf, MSG_ID_SIZE);
+    memcpy(msg->data + TYPE_SIZE + MSG_ID_SIZE, buf, len);
+    // create a send packet
+    sendPkt *spkt = (sendPkt *)malloc(sizeof(sendPkt));
+    spkt->message = *msg;
+    spkt->to_addr = *addr;
+    // add the packet to the send buffer
+    sendBuf->buffer[sendBuf->rear] = spkt;
+    sendBuf->rear = (sendBuf->rear + 1) % sendBuf->size;
+    return 0;
+}
+/* m_recvfrom – looks up the receiver-side message buffer to see if any message is
+already received. If yes, it returns the first message (in-order) and deletes that
+message from the table. If not, it returns with -1 and sets a global error variable to
+ENOMSG, indicating no message has been available in the message buffer. So the
+m_recvfrom call is non-blocking.*/
+int m_recvfrom(int sockfd, void *buf, size_t len, int flags,
+               struct sockaddr *client_addr, socklen_t *addrlen)
+{
+    // check if the receive buffer is empty
+    if (recvBuf->front == recvBuf->rear)
     {
-        // close the socket
-        int status = close(sockfd);
-        // cancel the threads
-        pthread_cancel(tid_R);
-        pthread_cancel(tid_S);
-        // wait for threads
-        pthread_join(tid_R, NULL);
-        pthread_join(tid_S, NULL);
-        // cleanup the memory
-        cleanup();
-        return status;
+        // set global ERROR to ENOMSG
+        ERROR = ENOMSG;
+        errno = ENOMSG;
+        return -1;
     }
+    // get the first message from the receive buffer
+    recvPkt *rpkt = recvBuf->buffer[recvBuf->front];
+    // delete the message from the buffer by setting it to NULL
+    recvBuf->buffer[recvBuf->front] = NULL;
+    // update the front of the buffer
+    recvBuf->front = (recvBuf->front + 1) % recvBuf->size;
+    // copy the message to the buffer
+    memcpy(buf, rpkt->message.data, len);
+    // copy the address to the client address
+    struct sockaddr_in *addr = (struct sockaddr_in *)client_addr;
+    *addr = rpkt->from_addr;
+    // return size of the message
+    return sizeof(rpkt->message.data);
+}
+int m_close(int sockfd)
+{
+    // close the socket
+    int status = close(sockfd);
+    // cancel the threads
+    pthread_cancel(tid_R);
+    pthread_cancel(tid_S);
+    // wait for threads
+    pthread_join(tid_R, NULL);
+    pthread_join(tid_S, NULL);
+    // cleanup the memory
+    cleanup();
+    return status;
+}
