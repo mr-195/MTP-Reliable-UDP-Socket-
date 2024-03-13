@@ -24,7 +24,7 @@
 typedef struct
 {
     short sequence_number;
-    char type; // 'A' for ACK, 'D' for Data
+    char type;       // 'A' for ACK, 'D' for Data
     char data[1024]; // Assuming message size is 1 KB which also includes the (header + sequence number + data)
     // Add other metadata fields as needed
 } Message;
@@ -44,13 +44,15 @@ typedef struct
 } recvPkt;
 
 // Element of Sender Window
-typedef struct {
+typedef struct
+{
     struct timeval time;
     sendPkt packet;
 } unAckPkt;
 
-// Sender Buffer 
-typedef struct {
+// Sender Buffer
+typedef struct
+{
     int front;
     int rear;
     int size;
@@ -58,37 +60,54 @@ typedef struct {
 } sendBuffer;
 
 // Receiver Buffer
-typedef struct {
+typedef struct
+{
     int front;
     int rear;
     int size;
     recvPkt *buffer[MAX_BUFFER_SIZE];
 } recvBuffer;
 
-// Structure to represent a Sender_Window 
-typedef struct {
+// Structure to represent a Sender_Window
+typedef struct
+{
     int window_size;
-    unAckPkt *window [MAX_WINDOW_SIZE];
+    unAckPkt *window[MAX_WINDOW_SIZE];
 } Sender_Window;
 
 // Structure to represent a Receiver_Window
-typedef struct {
+typedef struct
+{
     int window_size;
     recvPkt *window[MAX_WINDOW_SIZE];
 } Receiver_Window;
 
+// element of Shared Memory
+typedef struct
+{
+    int is_free;                      // Indicates whether the MTP socket is free or allotted
+    pid_t process_id;                 // Process ID of the process that created the MTP socket
 // element of Shared Memory 
 typedef struct {
     int is_free;       // Indicates whether the MTP socket is free or allotted
     pid_t process_id;                   // Process ID of the process that created the MTP socket
     int udp_socket_id;                // Corresponding UDP socket ID
-    char *ip_address;              // IP address of the other end of the MTP socket (assuming IPv4)
+    char *ip_address;                 // IP address of the other end of the MTP socket (assuming IPv4)
     int port;                         // Port number of the other end of the MTP socket
     sendBuffer *send_buffer;          // Send Buffer
     recvBuffer *recv_buffer;          // Receive Buffer
     Sender_Window *sender_window;     // Sender Window
     Receiver_Window *receiver_window; // Receiver Window
 } sharedMemory;
+
+// element of SOCK_INFO
+typedef struct
+{
+    int sock_id;
+    char *ip_address;
+    int port;
+    int error_no;
+} SOCK_INFO;
 // Functions available to application
 
 int m_socket(int domain, int type, int protocol);
@@ -97,7 +116,5 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags, const struct so
 int m_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
 int m_close(int sockfd);
 int dropMessage(float p);
-
-
 
 #endif

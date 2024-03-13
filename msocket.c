@@ -44,42 +44,7 @@ void *thread_S(void *arg);
 int msg_cntr = 0; // message counter to keep track of the next sequence number
 struct sockaddr_in dest_addr;
 
-void init_sender_buffer()
-{
-    sendBuf->front = 0;
-    sendBuf->rear = 0;
-    sendBuf->size = MAX_BUFFER_SIZE;
-    for (int i = 0; i < MAX_BUFFER_SIZE; i++)
-    {
-        sendBuf->buffer[i] = NULL;
-    }
-}
-void init_Sender_Window(int swnd_size)
-{
-    swnd->window_size = swnd_size;
-    for (int i = 0; i < swnd_size; i++)
-    {
-        swnd->window[i] = NULL;
-    }
-}
-void init_Receiver_Window(int rwnd_size)
-{
-    rwnd->window_size = rwnd_size;
-    for (int i = 0; i < rwnd_size; i++)
-    {
-        rwnd->window[i] = NULL;
-    }
-}
-void init_recv_buffer()
-{
-    recvBuf->front = 0;
-    recvBuf->rear = 0;
-    recvBuf->size = MAX_BUFFER_SIZE;
-    for (int i = 0; i < MAX_BUFFER_SIZE; i++)
-    {
-        recvBuf->buffer[i] = NULL;
-    }
-}
+
 void cleanup()
 {
     free(sendBuf->buffer);
