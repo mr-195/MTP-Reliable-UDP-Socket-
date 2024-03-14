@@ -8,13 +8,20 @@
 #include <sys/shm.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <sys/select.h>
 #define MAX_SOCKETS 25
+#define ACK_TYPE 'A'
+#define DATA_TYPE 'D'
+#define TYPE_SIZE sizeof(char)
+#define MSG_ID_SIZE sizeof(short)
+#define MAX_FRAME_SIZE 1024
 void *thread_R(void *arg);
 void *thread_S(void *arg);
 int key_SM = 1;
 int key_sockinfo = 2;
 int key_sem1 = 3;
 int key_sem2 = 4;
+int nospace = 0;
 #define P(s) semop(s, &pop, 1) /* pop is the structure we pass for doing \
                   the P(s) operation */
 #define V(s) semop(s, &vop, 1) /* vop is the structure we pass for doing \
@@ -27,6 +34,7 @@ void init_sender_buffer(sendBuffer *sendBuf)
     sendBuf->size = MAX_BUFFER_SIZE;
     for (int i = 0; i < MAX_BUFFER_SIZE; i++)
     {
+
         sendBuf->buffer[i] = NULL;
     }
 }
@@ -73,12 +81,162 @@ void init_recvPkt(recvPkt *pkt, Message *msg, struct sockaddr_in from_addr)
 void *thread_R(void *arg)
 {
     sharedMemory *SM = (sharedMemory *)arg;
-    // create and initialize semaphore set names
+    //
+    fd_set readfds;
+    struct timeval timeout;
+    while (1)
+    {
+        FD_ZERO(&readfds);
+        int max_fd = 0;
+        for (int i = 0; i < MAX_SOCKETS; i++)
+        {
+            if (SM[i].is_free == 0)
+            {
+                FD_SET(SM[i].udp_socket_id, &readfds);
+                if (SM[i].udp_socket_id > max_fd)
+                {
+                    max_fd = SM[i].udp_socket_id;
+                }
+            }
+        }
+        timeout.tv_sec = 5;
+        timeout.tv_usec = 0;
+        int ret = select(max_fd + 1, &readfds, NULL, NULL, &timeout);
+        if (ret > 0)
+        {
+            for (int i = 0; i < MAX_SOCKETS; i++)
+            {
+                if (FD_ISSET(SM[i].udp_socket_id, &readfds))
+                {
+                    // receive the packet
+                    recvPkt *pkt = (recvPkt *)malloc(sizeof(recvPkt));
+                    pkt->from_addr.sin_family = AF_INET;
+                    pkt->from_addr.sin_port = htons(SM[i].port);
+                    pkt->from_addr.sin_addr.s_addr = inet_addr(SM[i].ip_address);
+                    Message *msg = (Message *)malloc(sizeof(Message));
+                    pkt->message = *msg;
+                    int len = sizeof(pkt->from_addr);
+                    char buf[MAX_FRAME_SIZE];
+                    int n = recvfrom(SM[i].udp_socket_id, buf, MAX_FRAME_SIZE, 0, (struct sockaddr *)&pkt->from_addr, &len);
+                    if (n == -1)
+                    {
+                        printf("Error receiving packet\n");
+                    }
+                    else
+                    {
+                        // check if it is an DATA packet
+                        if (buf[0] == DATA_TYPE)
+                        {
+                            pkt->message.type = DATA_TYPE;
+                            // extract the sequence number
+                            short seq_num;
+                            seq_num = ntohs(*(short *)(buf + TYPE_SIZE));
+                            pkt->message.sequence_number = seq_num;
+                            // store buf in pkt->message.data
+                            for (int i = 0; i < MAX_FRAME_SIZE; i++)
+                            {
+                                pkt->message.data[i] = buf[i];
+                            }
+
+                            // add the packet to the receive buffer
+                            SM[i].recv_buffer->buffer[SM[i].recv_buffer->rear] = pkt;
+                            SM[i].recv_buffer->rear = (SM[i].recv_buffer->rear + 1) % MAX_BUFFER_SIZE;
+                            SM[i].recv_buffer->size++;
+
+                            // send ACK for the received packet
+                            char ack_buf[MAX_FRAME_SIZE];
+                            ack_buf[0] = ACK_TYPE;
+                            short t = htons(seq_num);
+                            memcpy(ack_buf + TYPE_SIZE, &t, MSG_ID_SIZE);
+                            int n = sendto(SM[i].udp_socket_id, ack_buf, MAX_FRAME_SIZE, 0, (struct sockaddr *)&pkt->from_addr, len);
+                            // set flag nospace if receiver buffer is full
+                            if (SM[i].recv_buffer->size == MAX_BUFFER_SIZE)
+                            {
+                                nospace = 1;
+                            }
+                        }
+                        else if (buf[0] == ACK_TYPE)
+                        {
+                            // extract the sequence number
+                            short seq_num;
+                            seq_num = ntohs(*(short *)(buf + TYPE_SIZE));
+                            // remove the packet from the sender window
+                            for (int i = 0; i < SM[i].sender_window->window_size; i++)
+                            {
+
+                                if (SM[i].sender_window->window[i]->packet.message.sequence_number == seq_num)
+                                {
+                                    if (SM[i].sender_window->window[i] = NULL) // duplicate message
+                                    {
+                                        // update the size of the sender window size
+                                        SM[i].sender_window->window_size--;
+                                        break;
+                                    }
+                                    else // first ACK message for the packet
+                                    {
+                                        // set to NULL
+                                        SM[i].sender_window->window[i] = NULL;
+                                        // update the size of the sender window size
+                                        SM[i].sender_window->window_size--;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        else // case of time out or no packet received
+        {
+            
+        }
+    }
 }
 void *thread_S(void *arg)
 {
     sharedMemory *SM = (sharedMemory *)arg;
     // create and initialize semaphore set names
+}
+/*G to clean up the
+corresponding entry in the MTP socket if the corresponding process is killed and the
+socket has not been closed explicitly.*/
+void *thread_G(void *arg)
+{
+    sharedMemory *SM = (sharedMemory *)arg;
+    // periodically scan the shared memory and check if the process is killed
+    while (1)
+    {
+        for (int i = 0; i < MAX_SOCKETS; i++)
+        {
+            int pid = SM[i].process_id;
+            // cc check if the process is killed
+            if (kill(pid, 0) == -1) // returns -1 if the process is killed
+            {
+                // clean up the corresponding entry in the MTP socket
+                SM[i].is_free = 1;
+                SM[i].process_id = -1;
+                // close the socket
+                close(SM[i].udp_socket_id);
+                SM[i].udp_socket_id = -1;
+                SM[i].ip_address = NULL;
+                SM[i].port = -1;
+                // initialize send buffer
+                SM[i].send_buffer = (sendBuffer *)malloc(sizeof(sendBuffer));
+                init_sender_buffer(SM[i].send_buffer);
+                // initialize receive buffer
+                SM[i].recv_buffer = (recvBuffer *)malloc(sizeof(recvBuffer));
+                init_receiver_buffer(SM[i].recv_buffer);
+                // initialize sender window
+                SM[i].sender_window = (Sender_Window *)malloc(sizeof(Sender_Window));
+                init_Sender_Window(MAX_WINDOW_SIZE, SM[i].sender_window);
+                // initialize receiver window
+                SM[i].receiver_window = (Receiver_Window *)malloc(sizeof(Receiver_Window));
+                init_Receiver_Window(MAX_WINDOW_SIZE, SM[i].receiver_window);
+            }
+        }
+        sleep(5);
+    }
 }
 // initializes two threads R and S, and a shared memory SM for the process P
 void init_process() // process P
