@@ -66,42 +66,7 @@ void cleanup()
 // thread R
 
 // thread S
-void *thread_S(void *arg)
-{
 
-    // sleep for time < T/2
-    sleep(T / 2);
-    struct timeval start, end;
-    gettimeofday(&start, NULL);
-    while (1)
-    {
-        gettimeofday(&end, NULL);
-        if ((end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec > T / 2)
-        {
-            // check for timeout
-            for (int i = 0; i < swnd->window_size; i++)
-            {
-                if (swnd->window[i] != NULL)
-                {
-                    struct timeval now;
-                    gettimeofday(&now, NULL);
-                    if ((now.tv_sec - swnd->window[i]->time.tv_sec) * 1000000 + now.tv_usec - swnd->window[i]->time.tv_usec > T)
-                    {
-                        // retransmit all the messages in the sender window
-                        for (int j = 0; j < swnd->window_size; j++)
-                        {
-                            if (swnd->window[j] != NULL)
-                            {
-                                sendto(*((int *)arg), swnd->window[j]->packet.message.data, sizeof(swnd->window[j]->packet.message.data), 0, (struct sockaddr *)&swnd->window[j]->packet.to_addr, sizeof(swnd->window[j]->packet.to_addr));
-                                gettimeofday(&swnd->window[j]->time, NULL);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
 
 int m_socket(int domain, int type, int protocol)
 {
