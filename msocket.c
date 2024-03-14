@@ -12,8 +12,6 @@
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/select.h>
@@ -201,7 +199,6 @@ void *thread_S(void *arg)
     }
 }
 
-
 int m_socket(int domain, int type, int protocol)
 {
     struct timeval seed;
@@ -217,6 +214,14 @@ int m_socket(int domain, int type, int protocol)
     // attach to the semaphores create by the main thread
     int sem1 = semget(key_sem1, 1, IPC_CREAT | 0666);
     int sem2 = semget(key_sem2, 1, IPC_CREAT | 0666);
+    struct sembuf pop;
+    struct sembuf vop;
+    pop.sem_num = 0;
+    pop.sem_op = -1;
+    pop.sem_flg = 0;
+    vop.sem_num = 0;
+    vop.sem_op = 1;
+    vop.sem_flg = 0;
 
     // check for type
     if (type != SOCK_MTP)
@@ -249,13 +254,6 @@ int m_socket(int domain, int type, int protocol)
         }
         else // found a free entry in the shared memory at index i
         {
-            struct sembuf pop, vop;
-            pop.sem_num = 0;
-            pop.sem_op = -1;
-            pop.sem_flg = 0;
-            vop.sem_num = 0;
-            vop.sem_op = 1;
-            vop.sem_flg = 0;
             // signal the semaphore sem1
             V(sem1);
             // wait for the semaphore sem2
@@ -296,25 +294,61 @@ int m_socket(int domain, int type, int protocol)
 // bind function
 int m_bind(int sockfd, const char *source_ip, int source_port, const char *dest_ip, int dest_port)
 {
-    // bind the socket
-    struct sockaddr_in addr;
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(source_port);
-    addr.sin_addr.s_addr = inet_addr(source_ip);
-    int bind_status = bind(sockfd, (struct sockaddr *)&addr, sizeof(addr));
-    if (bind_status < 0)
+    // attach to the shared memory SM
+    sharedMemory *SM;
+    int shmid_A = shmget(key_SM, MAX_SOCKETS * sizeof(sharedMemory), IPC_CREAT | 0666);
+    SM = (sharedMemory *)shmat(shmid_A, 0, 0);
+    SOCK_INFO *sockinfo;
+    int shmid_sockinfo = shmget(key_sockinfo, sizeof(SOCK_INFO), IPC_CREAT | 0666);
+    sockinfo = (SOCK_INFO *)shmat(shmid_sockinfo, 0, 0);
+    // attach to the semaphores create by the main thread
+    int sem1 = semget(key_sem1, 1, IPC_CREAT | 0666);
+    int sem2 = semget(key_sem2, 1, IPC_CREAT | 0666);
+    struct sembuf pop;
+    struct sembuf vop;
+    pop.sem_num = 0;
+    pop.sem_op = -1;
+    pop.sem_flg = 0;
+    vop.sem_num = 0;
+    vop.sem_op = 1;
+    vop.sem_flg = 0;
+    // find the corresponding entry in the shared memory
+    int i;
+    for (i = 0; i < MAX_SOCKETS; i++)
     {
-        // set global ERROR to EADDRINUSE
-        ERROR = EADDRINUSE;
-        errno = EADDRINUSE;
+        if (SM[i].udp_socket_id == sockfd)
+        {
+            break;
+        }
+    }
+    // Put the UDP socket ID, IP, and port in SOCK_INFO table
+    sockinfo->sock_id = sockfd;
+    sockinfo->ip_address = source_ip;
+    sockinfo->port = source_port;
+    // signal the semaphore sem1
+    V(sem1);
+    // wait for the semaphore sem2
+    P(sem2);
+    if (sockinfo->sock_id != -1)
+    {
+        // reset all fields of the sockinfo structure
+        sockinfo->sock_id = 0;
+        sockinfo->ip_address = NULL;
+        sockinfo->port = 0;
+
+        return 1;
+    }
+    else
+    {
+        // reset all fields of the sockinfo structure
+        sockinfo->sock_id = 0;
+        sockinfo->ip_address = NULL;
+        sockinfo->port = 0;
+        // set global ERROR to ENOBUFS
+        ERROR = ENOBUFS;
+        errno = ENOBUFS;
         return -1;
     }
-    // make destinaton address
-
-    dest_addr.sin_family = AF_INET;
-    dest_addr.sin_port = htons(dest_port);
-    dest_addr.sin_addr.s_addr = inet_addr(dest_ip);
-    return bind_status;
 }
 
 int m_sendto(int sockfd, const void *buf, size_t len, int flags,
