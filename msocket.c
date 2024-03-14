@@ -24,7 +24,6 @@
 #define MAX_WINDOW_SIZE 5
 #define ACK_TYPE 'A'
 #define DATA_TYPE 'D'
-#define ENOTBOUND 1
 #define TYPE_SIZE sizeof(char)
 #define MSG_ID_SIZE sizeof(short)
 #define MAX_FRAME_SIZE 1024
@@ -263,7 +262,7 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags,
     if (addr->sin_family != dest_addr.sin_family || addr->sin_port != dest_addr.sin_port || addr->sin_addr.s_addr != dest_addr.sin_addr.s_addr)
     {
         // set global ERROR to ENOTBOUND
-        errno = ENOTBOUND;
+        errno = ENOTCONN;
         return -1;
     }
     // check if the send buffer is full
