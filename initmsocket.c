@@ -15,7 +15,8 @@
 #define TYPE_SIZE sizeof(char)
 #define MSG_ID_SIZE sizeof(short)
 #define MAX_FRAME_SIZE 1024
-void *thread_R(void *arg);
+#define T 5
+void *thread_(void *arg);
 void *thread_S(void *arg);
 int key_SM = 1;
 int key_sockinfo = 2;
@@ -193,11 +194,6 @@ void *thread_R(void *arg)
         }
     }
 }
-void *thread_S(void *arg)
-{
-    sharedMemory *SM = (sharedMemory *)arg;
-    
-}
 /*G to clean up the
 corresponding entry in the MTP socket if the corresponding process is killed and the
 socket has not been closed explicitly.*/
@@ -236,6 +232,112 @@ void *thread_G(void *arg)
             }
         }
         sleep(5);
+    }
+}
+
+void *thread_S(void *arg)
+{
+    sharedMemory *SM = (sharedMemory *)arg;
+    struct timeval last_sent_time[MAX_SOCKETS]; // To track the last time a message was sent for each socket
+    fd_set writefds;
+    int max_fd;
+    
+    while (1)
+    {
+        // Initialize writefds and max_fd
+        FD_ZERO(&writefds);
+        max_fd = 0;
+        
+        // Add active sockets to writefds
+        for (int i = 0; i < MAX_SOCKETS; i++)
+        {
+            if (!SM[i].is_free)
+            {
+                FD_SET(SM[i].udp_socket_id, &writefds);
+                if (SM[i].udp_socket_id > max_fd)
+                    max_fd = SM[i].udp_socket_id;
+            }
+        }
+        
+        // Set timeout
+        struct timeval timeout;
+        timeout.tv_sec = T / 2;
+        timeout.tv_usec = 0;
+        
+        // Wait for any socket to become writable or timeout
+        int ret = select(max_fd + 1, NULL, &writefds, NULL, &timeout);
+        if (ret > 0)
+        {
+            // Handle writable sockets
+            for (int i = 0; i < MAX_SOCKETS; i++)
+            {
+                if (!SM[i].is_free && FD_ISSET(SM[i].udp_socket_id, &writefds))
+                {
+                    // Check if there's a message to send in the sender buffer
+                    if (SM[i].send_buffer->front != SM[i].send_buffer->rear)
+                    {
+                        // Get the message to send from the sender buffer
+                        // Assuming sendBuffer is a circular buffer
+                        Message *msg = SM[i].send_buffer->buffer[SM[i].send_buffer->front];
+                        
+                        // Calculate message size (assuming fixed size messages)
+                        int msg_size = sizeof(Message);
+                        
+                        // Send the message
+                        int bytes_sent = sendto(SM[i].udp_socket_id, (char *)msg, msg_size, 0,
+                                                (struct sockaddr *)&SM[i].ip_address, sizeof(SM[i].ip_address));
+                        if (bytes_sent == -1)
+                        {
+                            // Error handling
+                            printf("Error sending message from socket %d\n", SM[i].udp_socket_id);
+                        }
+                        else
+                        {
+                            // Update last sent time
+                            gettimeofday(&last_sent_time[i], NULL);
+                        }
+                        
+                        // Move to the next message in the sender buffer
+                        SM[i].send_buffer->front = (SM[i].send_buffer->front + 1) % MAX_BUFFER_SIZE;
+                    }
+                }
+            }
+        }
+        else if (ret == 0)
+        {
+            // Timeout occurred, check for retransmissions
+            struct timeval current_time;
+            gettimeofday(&current_time, NULL);
+            
+            for (int i = 0; i < MAX_SOCKETS; i++)
+            {
+                if (!SM[i].is_free && (current_time.tv_sec - last_sent_time[i].tv_sec >= T))
+                {
+                    // Retransmit all unacknowledged messages in the sender window
+                    for (int j = 0; j < SM[i].sender_window->window_size; j++)
+                    {
+                        if (SM[i].sender_window->window[j] != NULL)
+                        {
+                            // Retransmit the message
+                            Message *msg = SM[i].sender_window->window[j];
+                            int msg_size = sizeof(Message);
+                            int bytes_sent = sendto(SM[i].udp_socket_id, (char *)msg, msg_size, 0,
+                                                    (struct sockaddr *)&SM[i].ip_address, sizeof(SM[i].ip_address));
+                            if (bytes_sent == -1)
+                            {
+                                // Error handling
+                                printf("Error retransmitting message from socket %d\n", SM[i].udp_socket_id);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        else
+        {
+            // Error handling for select()
+            perror("select");
+        }
     }
 }
 // initializes two threads R and S, and a shared memory SM for the process P
