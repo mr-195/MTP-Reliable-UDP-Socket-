@@ -1,0 +1,12 @@
+CC=gcc
+CFLAGS=-Wall
+
+initmsocket: initmsocket.o
+	$(CC) $(CFLAGS) -o initmsocket initmsocket.o -L. -lmsocket -lpthread
+
+initmsocket.o: initmsocket.c
+	$(CC) $(CFLAGS) -c initmsocket.c -o initmsocket.o
+
+clean:
+	rm -f initmsocket initmsocket.o
+	make -f makefile.libmsocket clean

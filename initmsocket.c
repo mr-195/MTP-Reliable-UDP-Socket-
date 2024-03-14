@@ -189,14 +189,14 @@ void *thread_R(void *arg)
         }
         else // case of time out or no packet received
         {
-            
+
         }
     }
 }
 void *thread_S(void *arg)
 {
     sharedMemory *SM = (sharedMemory *)arg;
-    // create and initialize semaphore set names
+    
 }
 /*G to clean up the
 corresponding entry in the MTP socket if the corresponding process is killed and the
