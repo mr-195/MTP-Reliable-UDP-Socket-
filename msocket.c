@@ -37,11 +37,6 @@ int key_sockinfo = 2;
 int key_sem1 = 3;
 int key_sem2 = 4;
 
-sendBuffer *sendBuf;
-recvBuffer *recvBuf;
-Sender_Window *swnd;
-Receiver_Window *rwnd;
-pthread_t tid_R, tid_S;
 int flag_nospace = 0;
 int last_ack_seq = -1; // last acknowledged sequence number
 // global errorno
@@ -51,21 +46,9 @@ void *thread_S(void *arg);
 int msg_cntr = 0; // message counter to keep track of the next sequence number
 struct sockaddr_in dest_addr;
 
-void cleanup()
-{
-    free(sendBuf->buffer);
-    free(recvBuf->buffer);
-    free(swnd->window);
-    free(rwnd->window);
-    free(sendBuf);
-    free(recvBuf);
-    free(swnd);
-    free(rwnd);
-}
 // thread R
 
 // thread S
-
 
 int m_socket(int domain, int type, int protocol)
 {
@@ -222,40 +205,89 @@ int m_bind(int sockfd, const char *source_ip, int source_port, const char *dest_
 int m_sendto(int sockfd, const void *buf, size_t len, int flags,
              const struct sockaddr *client_addr, socklen_t addrlen)
 {
-    // check if the destination address matches the bound address
-    struct sockaddr_in *addr = (struct sockaddr_in *)client_addr;
-    if (addr->sin_family != dest_addr.sin_family || addr->sin_port != dest_addr.sin_port || addr->sin_addr.s_addr != dest_addr.sin_addr.s_addr)
+    // attach to the shared memory SM
+    sharedMemory *SM;
+    int shmid_A = shmget(key_SM, MAX_SOCKETS * sizeof(sharedMemory), IPC_CREAT | 0666);
+    SM = (sharedMemory *)shmat(shmid_A, 0, 0);
+    SOCK_INFO *sockinfo;
+    int shmid_sockinfo = shmget(key_sockinfo, sizeof(SOCK_INFO), IPC_CREAT | 0666);
+    sockinfo = (SOCK_INFO *)shmat(shmid_sockinfo, 0, 0);
+    // attach to the semaphores create by the main thread
+    int sem1 = semget(key_sem1, 1, IPC_CREAT | 0666);
+    int sem2 = semget(key_sem2, 1, IPC_CREAT | 0666);
+    struct sembuf pop;
+    struct sembuf vop;
+    pop.sem_num = 0;
+    pop.sem_op = -1;
+    pop.sem_flg = 0;
+    vop.sem_num = 0;
+    vop.sem_op = 1;
+    vop.sem_flg = 0;
+    // find the corresponding entry in the shared memory
+    int i;
+    for (i = 0; i < MAX_SOCKETS; i++)
     {
-        // set global ERROR to ENOTBOUND
-        errno = ENOTCONN;
-        return -1;
+        if (SM[i].udp_socket_id == sockfd)
+        {
+            break;
+        }
     }
-    // check if the send buffer is full
-    if (sendBuf->front == (sendBuf->rear + 1) % sendBuf->size)
+    if (i == MAX_SOCKETS)
     {
         // set global ERROR to ENOBUFS
         ERROR = ENOBUFS;
         errno = ENOBUFS;
         return -1;
     }
-    // create a message
-    Message *msg = (Message *)malloc(sizeof(Message));
-    msg->sequence_number = msg_cntr;
-    msg_cntr++;
-    msg->type = DATA_TYPE;
-    // add the DATA_TYPE and Sequence number to the message
-    msg->data[0] = DATA_TYPE;
-    short seq_buf = htons(msg->sequence_number);
-    memcpy(msg->data + TYPE_SIZE, &seq_buf, MSG_ID_SIZE);
-    memcpy(msg->data + TYPE_SIZE + MSG_ID_SIZE, buf, len);
-    // create a send packet
-    sendPkt *spkt = (sendPkt *)malloc(sizeof(sendPkt));
-    spkt->message = *msg;
-    spkt->to_addr = *addr;
-    // add the packet to the send buffer
-    sendBuf->buffer[sendBuf->rear] = spkt;
-    sendBuf->rear = (sendBuf->rear + 1) % sendBuf->size;
-    return 0;
+    // get ip address and port from the client address
+    // check for space in the send buffer
+    if ((SM[i].send_buffer->rear + 1) % SM[i].send_buffer->size == SM[i].send_buffer->front)
+    {
+        // set global ERROR to ENOBUFS
+        ERROR = ENOBUFS;
+        errno = ENOBUFS;
+        return -1;
+    }
+    struct sockaddr_in *addr = (struct sockaddr_in *)client_addr;
+    char *ip = inet_ntoa(addr->sin_addr);
+    int port = ntohs(addr->sin_port);
+    // check if the ipaddress match with the ipaddress in the shared memory
+    if (SM[i].ip_address == ip && SM[i].port == port)
+    {
+        // write message to the sender side buffer
+        sendPkt *spkt = (sendPkt *)malloc(sizeof(sendPkt));
+        char new_buf[MAX_FRAME_SIZE];
+        int offset = 0;
+
+        // Copy the DATA_TYPE to new_buf
+        strcpy(new_buf, DATA_TYPE);
+        offset += strlen(DATA_TYPE); // Update offset
+
+        // Convert and copy the sequence number to new_buf
+        short seq_number = htons(spkt->message.sequence_number); // Assuming sequence_number is short
+        memcpy(new_buf + offset, &seq_number, MSG_ID_SIZE);
+        offset += MSG_ID_SIZE; // Update offset
+
+        // Copy the message data (buf) to new_buf
+        memcpy(new_buf + offset, buf, len);
+        offset += len; // Update offset
+
+        // Copy new_buf to spkt->message.data
+        memcpy(spkt->message.data, new_buf, offset);
+
+        spkt->to_addr = *addr;
+        SM[i].send_buffer->buffer[SM[i].send_buffer->rear] = spkt;
+        SM[i].send_buffer->rear = (SM[i].send_buffer->rear + 1) % SM[i].send_buffer->size;
+    }
+    else
+    {
+        // set global ERROR to ENOBUFS
+        ERROR = ENOBUFS;
+        errno = ENOBUFS;
+        return -1;
+    }
+   
+    return len;
 }
 /* m_recvfrom – looks up the receiver-side message buffer to see if any message is
 already received. If yes, it returns the first message (in-order) and deletes that
@@ -265,39 +297,96 @@ m_recvfrom call is non-blocking.*/
 int m_recvfrom(int sockfd, void *buf, size_t len, int flags,
                struct sockaddr *client_addr, socklen_t *addrlen)
 {
-    // check if the receive buffer is empty
-    if (recvBuf->front == recvBuf->rear)
+      // attach to the shared memory SM
+    sharedMemory *SM;
+    int shmid_A = shmget(key_SM, MAX_SOCKETS * sizeof(sharedMemory), IPC_CREAT | 0666);
+    SM = (sharedMemory *)shmat(shmid_A, 0, 0);
+    SOCK_INFO *sockinfo;
+    int shmid_sockinfo = shmget(key_sockinfo, sizeof(SOCK_INFO), IPC_CREAT | 0666);
+    sockinfo = (SOCK_INFO *)shmat(shmid_sockinfo, 0, 0);
+    // attach to the semaphores create by the main thread
+    int sem1 = semget(key_sem1, 1, IPC_CREAT | 0666);
+    int sem2 = semget(key_sem2, 1, IPC_CREAT | 0666);
+    struct sembuf pop;
+    struct sembuf vop;
+    pop.sem_num = 0;
+    pop.sem_op = -1;
+    pop.sem_flg = 0;
+    vop.sem_num = 0;
+    vop.sem_op = 1;
+    vop.sem_flg = 0;
+    // find the corresponding entry in the shared memory
+    int i;
+    for (i = 0; i < MAX_SOCKETS; i++)
+    {
+        if (SM[i].udp_socket_id == sockfd)
+        {
+            break;
+        }
+    }
+    if (i == MAX_SOCKETS)
+    {
+        // set global ERROR to ENOBUFS
+        ERROR = ENOBUFS;
+        errno = ENOBUFS;
+        return -1;
+    }
+    // check for space in the receive buffer
+    if (SM[i].recv_buffer->front == SM[i].recv_buffer->rear)
     {
         // set global ERROR to ENOMSG
         ERROR = ENOMSG;
         errno = ENOMSG;
         return -1;
     }
-    // get the first message from the receive buffer
-    recvPkt *rpkt = recvBuf->buffer[recvBuf->front];
-    // delete the message from the buffer by setting it to NULL
-    recvBuf->buffer[recvBuf->front] = NULL;
-    // update the front of the buffer
-    recvBuf->front = (recvBuf->front + 1) % recvBuf->size;
-    // copy the message to the buffer
-    memcpy(buf, rpkt->message.data, len);
-    // copy the address to the client address
-    struct sockaddr_in *addr = (struct sockaddr_in *)client_addr;
-    *addr = rpkt->from_addr;
-    // return size of the message
-    return sizeof(rpkt->message.data);
+    // get the first message from the receiver side buffer
+    recvPkt *rpkt ;
+    rpkt = SM[i].recv_buffer->buffer[SM[i].recv_buffer->front];
+    // delete the message from the receiver side buffer
+    SM[i].recv_buffer->buffer[SM[i].recv_buffer->front] = NULL;
+    SM[i].recv_buffer->front = (SM[i].recv_buffer->front + 1) % SM[i].recv_buffer->size;
+
+
 }
 int m_close(int sockfd)
 {
+    sharedMemory *SM;
+    int shmid_A = shmget(key_SM, MAX_SOCKETS * sizeof(sharedMemory), IPC_CREAT | 0666);
+    SM = (sharedMemory *)shmat(shmid_A, 0, 0);
+    SOCK_INFO *sockinfo;
+    int shmid_sockinfo = shmget(key_sockinfo, sizeof(SOCK_INFO), IPC_CREAT | 0666);
+    sockinfo = (SOCK_INFO *)shmat(shmid_sockinfo, 0, 0);
+    // attach to the semaphores create by the main thread
+    int sem1 = semget(key_sem1, 1, IPC_CREAT | 0666);
+    int sem2 = semget(key_sem2, 1, IPC_CREAT | 0666);
+    struct sembuf pop;
+    struct sembuf vop;
+    pop.sem_num = 0;
+    pop.sem_op = -1;
+    pop.sem_flg = 0;
+    vop.sem_num = 0;
+    vop.sem_op = 1;
+    vop.sem_flg = 0;
+
+    // find the corresponding entry in the shared memory
+    int i;
+    for (i = 0; i < MAX_SOCKETS; i++)
+    {
+        if (SM[i].udp_socket_id == sockfd)
+        {
+            break;
+        }
+    }
+    if (i == MAX_SOCKETS)
+    {
+        // set global ERROR to ENOBUFS
+        ERROR = ENOBUFS;
+        errno = ENOBUFS;
+        return -1;
+    }
     // close the socket
-    int status = close(sockfd);
-    // cancel the threads
-    pthread_cancel(tid_R);
-    pthread_cancel(tid_S);
-    // wait for threads
-    pthread_join(tid_R, NULL);
-    pthread_join(tid_S, NULL);
-    // cleanup the memory
-    cleanup();
-    return status;
+    // mark the entry in the shared memory as free
+    SM[i].is_free = 1;
+    int ret = close(sockfd);
+    return ret;
 }
