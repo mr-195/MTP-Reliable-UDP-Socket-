@@ -85,7 +85,7 @@ typedef struct
 
 // element of Shared Memory
 typedef struct {
-    int is_free;       // Indicates whether the MTP socket is free or allotted
+    int is_free;                    // Indicates whether the MTP socket is free or allotted
     pid_t process_id;                   // Process ID of the process that created the MTP socket
     int udp_socket_id;                // Corresponding UDP socket ID
     char *ip_address;                 // IP address of the other end of the MTP socket (assuming IPv4)
