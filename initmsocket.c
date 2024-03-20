@@ -19,10 +19,12 @@
 #define T 5
 void *thread_(void *arg);
 void *thread_S(void *arg);
+
 int key_SM = 1;
 int key_sockinfo = 2;
 int key_sem1 = 3;
 int key_sem2 = 4;
+
 int nospace = 0;
 #define P(s) semop(s, &pop, 1) /* pop is the structure we pass for doing \
                   the P(s) operation */
@@ -141,6 +143,7 @@ void *thread_R(void *arg)
                             }
 
                             // add the packet to the receive buffer
+                            // check if buffer is full
                             SM[i].recv_buffer->buffer[SM[i].recv_buffer->rear] = pkt;
                             SM[i].recv_buffer->rear = (SM[i].recv_buffer->rear + 1) % MAX_BUFFER_SIZE;
                             SM[i].recv_buffer->size++;
@@ -348,7 +351,7 @@ void init_process() // process P
     sharedMemory *SM;
     int shmid_A = shmget(key_SM, MAX_SOCKETS * sizeof(sharedMemory), IPC_CREAT | 0666);
     SM = (sharedMemory *)shmat(shmid_A, 0, 0);
-    SOCK_INFO *sockinfo;
+    SOCK_INFO *sockinfo; 
     int shmid_sockinfo = shmget(key_sockinfo, sizeof(SOCK_INFO), IPC_CREAT | 0666);
     sockinfo = (SOCK_INFO *)shmat(shmid_sockinfo, 0, 0);
     // initilaize the sockinfo structure
@@ -446,6 +449,6 @@ void init_process() // process P
 
 int main()
 {
-    init_process();
+    // init_process();
     return 0;
 }

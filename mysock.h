@@ -1,0 +1,4 @@
+#define MAX_WINDOW_SIZE 5
+#define MAX_BUFFER_SIZE 10
+#define MAX_SOCKETS 25
+#define SOCK_MTP 15

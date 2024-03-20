@@ -19,7 +19,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#define SOCK_MTP 0x8
 #define MAX_BUFFER_SIZE 10
 #define MAX_WINDOW_SIZE 5
 #define ACK_TYPE 'A'
@@ -32,11 +31,11 @@
                   the P(s) operation */
 #define V(s) semop(s, &vop, 1) /* vop is the structure we pass for doing \
                   the V(s) operation */
+
 int key_SM = 1;
 int key_sockinfo = 2;
 int key_sem1 = 3;
 int key_sem2 = 4;
-
 int flag_nospace = 0;
 int last_ack_seq = -1; // last acknowledged sequence number
 // global errorno
@@ -57,10 +56,10 @@ int m_socket(int domain, int type, int protocol)
     srand(seed.tv_usec);
     // attach to the shared memory SM
     sharedMemory *SM;
-    int shmid_A = shmget(key_SM, MAX_SOCKETS * sizeof(sharedMemory), IPC_CREAT | 0666);
+    int shmid_A = shmget((key_t)key_SM, MAX_SOCKETS * sizeof(sharedMemory), IPC_CREAT | 0666);
     SM = (sharedMemory *)shmat(shmid_A, 0, 0);
     SOCK_INFO *sockinfo;
-    int shmid_sockinfo = shmget(key_sockinfo, sizeof(SOCK_INFO), IPC_CREAT | 0666);
+    int shmid_sockinfo = shmget((key_t)key_sockinfo, sizeof(SOCK_INFO), IPC_CREAT | 0666);
     sockinfo = (SOCK_INFO *)shmat(shmid_sockinfo, 0, 0);
     // attach to the semaphores create by the main thread
     int sem1 = semget(key_sem1, 1, IPC_CREAT | 0666);
