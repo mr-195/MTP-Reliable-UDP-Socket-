@@ -23,10 +23,10 @@
 #include <sys/sem.h>
 #include <sys/ipc.h>
 #include <sys/types.h>
-#define key_SM  1
-#define key_sockinfo  2
-#define key_sem1  3
-#define key_sem2 4
+// #define key_SM  1
+// #define key_sockinfo  2
+// #define key_sem1  3
+// #define key_sem2 4
 #define TYPE_SIZE sizeof(char)
 #define MSG_ID_SIZE sizeof(short)
 #define MAX_FRAME_SIZE 1024
