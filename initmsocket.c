@@ -17,7 +17,7 @@
 #define MSG_ID_SIZE sizeof(short)
 #define MAX_FRAME_SIZE 1024
 #define T 5
-void *thread_(void *arg);
+void *thread_R(void *arg);
 void *thread_S(void *arg);
 
 int key_SM = 1;
