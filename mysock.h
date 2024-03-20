@@ -27,6 +27,9 @@
 #define key_sockinfo  2
 #define key_sem1  3
 #define key_sem2 4
+#define TYPE_SIZE sizeof(char)
+#define MSG_ID_SIZE sizeof(short)
+#define MAX_FRAME_SIZE 1024
 #define P(semid) semop(semid,&pop,1)
 #define V(semid) semop(semid,&vop,1)
 typedef struct
@@ -85,6 +88,8 @@ typedef struct
     int sockfd;
     char ip[20];
     int port;
+    int flag_nospace;
+    int last_ack;
     send_window swnd;
     send_buff sbuff;
     recv_window rwnd;
