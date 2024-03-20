@@ -192,7 +192,9 @@ void *thread_S(void *arg)
               for(int j=0;j<SM[i].swnd.size;j++)
               {
                 // check if the time difference between the current time and the time of the packet is greater than T
-                if((current_time.tv_sec - SM[i].swnd.window[j]->time.tv_sec) > T)
+                struct timeval diff;
+                timersub(&current_time, &SM[i].swnd.window[j]->time, &diff);
+                if(diff.tv_sec > T)
                 {
                     // restransmit all the packets in the sender window
                     for(int k=0;k<SM[i].swnd.size;k++)
