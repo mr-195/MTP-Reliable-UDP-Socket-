@@ -25,7 +25,7 @@
 int main()
 {
     int sockfd;
-
+    printf("Creating socket\n");
     if((sockfd = m_socket(AF_INET,SOCK_MTP,0)) < 0)
     {
         perror("msocket");
@@ -41,7 +41,7 @@ int main()
     u2_addr.sin_port = htons(PORT_2);
     u2_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
-    if(m_bind(sockfd, (struct sockaddr *)&u1_addr, sizeof(u1_addr)) < 0)
+    if(m_bind(sockfd,"127.0.0.1",PORT_1,"127.0.0.1",PORT_2) < 0)
     {
         perror("m_bind");
         exit(1);

@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <sys/select.h>
+#include <sys/time.h>
 #define MAX_SOCKETS 25
 #define ACK_TYPE 'A'
 #define DATA_TYPE 'D'

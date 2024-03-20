@@ -83,6 +83,7 @@ int m_socket(int domain, int type, int protocol)
         return -1;
     }
     // create a socket
+    printf("Creating socket test\n");
     int sockfd = socket(domain, SOCK_DGRAM, protocol);
 
     if (sockfd >= 0)
