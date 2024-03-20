@@ -2,6 +2,9 @@
 #define MAX_BUFFER_SIZE 10
 #define MAX_SOCKETS 25
 #define SOCK_MTP 15
+#define ACK_TYPE 'A'
+#define DATA_TYPE 'D'
+#define KEY_SM 1234
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -16,7 +19,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-
+#include <sys/shm.h>
+#include <sys/sem.h>
+#include <sys/ipc.h>
+#include <sys/types.h>
+#define key_SM  1
+#define key_sockinfo  2
+#define key_sem1  3
+#define key_sem2 4
+#define P(semid) semop(semid,&pop,1)
+#define V(semid) semop(semid,&vop,1)
 typedef struct
 {
     short sequence_number;
@@ -81,7 +93,7 @@ typedef struct
 
 typedef struct
 {
-    int sock_id;
+    int sockfd;
     char ip[20];
     int port;
     int error_no;

@@ -32,12 +32,11 @@
 #define V(s) semop(s, &vop, 1) /* vop is the structure we pass for doing \
                   the V(s) operation */
 
-int key_SM = 1;
-int key_sockinfo = 2;
-int key_sem1 = 3;
-int key_sem2 = 4;
-int flag_nospace = 0;
-int last_ack_seq = -1; // last acknowledged sequence number
+#define key_SM  1
+#define key_sockinfo  2
+#define key_sem1  3
+#define key_sem2 4
+// last acknowledged sequence number
 // global errorno
 int ERROR;
 
@@ -57,7 +56,7 @@ int m_socket(int domain, int type, int protocol)
     // attach to the shared memory SM
     sharedMemory *SM;
     int shmid_A = shmget((key_t)key_SM, MAX_SOCKETS * sizeof(sharedMemory), IPC_CREAT | 0666);
-    SM = (sharedMemory *)shmat(shmid_A, 0, 0);
+    sharedMemory *SM = (sharedMemory *)shmat(shmid_A, 0, 0);
     SOCK_INFO *sockinfo;
     int shmid_sockinfo = shmget((key_t)key_sockinfo, sizeof(SOCK_INFO), IPC_CREAT | 0666);
     sockinfo = (SOCK_INFO *)shmat(shmid_sockinfo, 0, 0);
