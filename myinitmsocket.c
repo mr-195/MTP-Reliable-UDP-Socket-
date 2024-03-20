@@ -180,7 +180,44 @@ void *thread_R(void *arg)
 void *thread_S(void *arg)
 {
     printf("Thread S\n");
-    
+    while(1)
+    {
+        sleep(T/2);
+        // get current time 
+        struct timeval current_time;
+        gettimeofday(&current_time, NULL);
+        for(int i=0;i<MAX_SOCKETS;i++)
+        {
+           // loop through the sender window
+              for(int j=0;j<SM[i].swnd.size;j++)
+              {
+                // check if the time difference between the current time and the time of the packet is greater than T
+                if((current_time.tv_sec - SM[i].swnd.window[j]->time.tv_sec) > T)
+                {
+                    // restransmit all the packets in the sender window
+                    for(int k=0;k<SM[i].swnd.size;k++)
+                    {
+                        if(SM[i].swnd.window[k] != NULL)
+                        {
+                        // send the packet
+                        struct sockaddr_in to_addr;
+                        to_addr.sin_family = AF_INET;
+                        to_addr.sin_port = htons(SM[i].port);
+                        to_addr.sin_addr.s_addr = inet_addr(SM[i].ip);
+                        int len = sizeof(to_addr);
+                        int n = sendto(SM[i].sockfd,SM[i].swnd.window[k]->data, MAX_FRAME_SIZE, 0, (struct sockaddr *)&to_addr, len);
+                        if(n==-1)
+                        {
+                            printf("Error sending packet\n");
+                        }
+                        }
+                    }
+                    break;
+                }
+              
+
+        }
+    }
 }
 // thread G
 void *thread_G(void *arg)

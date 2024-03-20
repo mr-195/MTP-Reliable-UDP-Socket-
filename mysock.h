@@ -30,6 +30,7 @@
 #define TYPE_SIZE sizeof(char)
 #define MSG_ID_SIZE sizeof(short)
 #define MAX_FRAME_SIZE 1024
+#define T 5
 #define P(semid) semop(semid,&pop,1)
 #define V(semid) semop(semid,&vop,1)
 typedef struct
