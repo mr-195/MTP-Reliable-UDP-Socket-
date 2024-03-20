@@ -13,10 +13,10 @@
 void *thread_R(void *arg);
 void *thread_S(void *arg);
 
-int key_SM = 89;
-int key_sockinfo = 90;
-int key_sem1 = 91;
-int key_sem2 = 92;
+#define key_SM  89
+#define key_sockinfo  90
+#define key_sem1  91
+#define key_sem2  92
 #define P(s) semop(s, &pop, 1) /* pop is the structure we pass for doing \
                   the P(s) operation */
 #define V(s) semop(s, &vop, 1) /* vop is the structure we pass for doing \
@@ -60,7 +60,7 @@ void init_process()
 
     // Initialize the sockinfo structure
     sockinfo->error_no = 0;
-    sockinfo->sock_id = 0;
+    sockinfo->sockfd = 0;
     sockinfo->port = 0;
 
     // memset(sockinfo->ip, 0, sizeof(sockinfo->ip));
@@ -136,33 +136,33 @@ void init_process()
         P(sem1);
         // look at SOCK_INFO and find the socket id
         // check if all fields are 0 it is a m_socket call
-        if (sockinfo->sock_id == 0 &&  sockinfo->port == 0 && sockinfo->error_no == 0)
+        if (sockinfo->sockfd == 0 &&  sockinfo->port == 0 && sockinfo->error_no == 0)
         {
             // create a new socket
-            int sock_id = socket(AF_INET, SOCK_DGRAM, 0);
-            if (sock_id == -1)
+            int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+            if (sockfd == -1)
             {
                 printf("Error creating socket\n");
-                sockinfo->sock_id = -1;
+                sockinfo->sockfd = -1;
                 sockinfo->error_no = errno;
                 //
             }
-            sockinfo->sock_id = sock_id;
+            sockinfo->sockfd = sockfd;
             // signal sem2
             V(sem2);
         }
 
-        else if (sockinfo->sock_id != 0 &&  sockinfo->port != 0) // it is a m_bind call
+        else if (sockinfo->sockfd != 0 &&  sockinfo->port != 0) // it is a m_bind call
         {
             // make a bind call
             struct sockaddr_in server;
             server.sin_family = AF_INET;
             server.sin_port = htons(sockinfo->port);
             server.sin_addr.s_addr = inet_addr(sockinfo->ip);
-            int bind_status = bind(sockinfo->sock_id, (struct sockaddr *)&server, sizeof(server));
+            int bind_status = bind(sockinfo->sockfd, (struct sockaddr *)&server, sizeof(server));
             if (bind_status == -1)
             {
-                sockinfo->sock_id = -1;
+                sockinfo->sockfd = -1;
                 sockinfo->error_no = errno;
             }
             // signal sem2
