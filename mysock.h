@@ -1,5 +1,7 @@
 #define MAX_WINDOW_SIZE 5
 #define MAX_BUFFER_SIZE 10
+#define MAX_FRAME_SIZE 10
+#define MSG_ID_SIZE 2
 #define MAX_SOCKETS 25
 #define SOCK_MTP 15
 #define ACK_TYPE 'A'

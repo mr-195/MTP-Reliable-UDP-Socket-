@@ -9,6 +9,15 @@
         "unistd.h": "c",
         "signal.h": "c",
         "wait.h": "c",
-        "shm.h": "c"
+        "shm.h": "c",
+        "any": "c",
+        "*.tcc": "c",
+        "memory_resource": "c",
+        "format": "c",
+        "fstream": "c",
+        "istream": "c",
+        "ostream": "c",
+        "sstream": "c",
+        "streambuf": "c"
     }
 }
