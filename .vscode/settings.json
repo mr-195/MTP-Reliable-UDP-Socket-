@@ -1,5 +1,11 @@
 {
     "files.associations": {
-        "string.h": "c"
+        "*.cpp": "cpp",
+        "*.cxx": "cpp",
+        "*.c++": "cpp",
+        "*.html": "html",
+        "string.h": "c",
+        "unistd.h": "c",
+        "signal.h": "c"
     }
 }
