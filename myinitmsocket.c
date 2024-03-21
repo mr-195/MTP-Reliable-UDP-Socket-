@@ -1,15 +1,5 @@
 #include "mysock.h"
-#include <unistd.h>
-#include <stdio.h>
-#include <sys/wait.h>
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/sem.h>
-#include <sys/shm.h>
-#include <stdlib.h>
-#include <pthread.h>
-#include <sys/select.h>
-#include <sys/time.h>
+
 void *thread_R(void *arg);
 void *thread_S(void *arg);
 void *thread_G(void *arg);
@@ -218,7 +208,8 @@ void *thread_S(void *arg)
                 }
             }
         }
-        //
+        // sleep for T/2
+
     }
 }
 // thread G
@@ -254,8 +245,10 @@ void init_process()
     // memset(sockinfo->ip, 0, sizeof(sockinfo->ip));
 
     // create two semaphores 1 and 2 sem1 and sem2
-    int sem1 = semget(11, 1, IPC_CREAT | 0666);
-    int sem2 = semget(12, 1, IPC_CREAT | 0666);
+    int key_sem1 = ftok("sem1", 67);
+    int key_sem2 = ftok("sem2", 68);
+    int sem1 = semget((key_t)key_sem1, 1, IPC_CREAT | 0666);
+    int sem2 = semget((key_t)key_sem2, 1, IPC_CREAT | 0666);
     // initialize the semaphores
     semctl(sem1, 0, SETVAL, 0);
     semctl(sem2, 0, SETVAL, 0);
