@@ -78,7 +78,7 @@ int m_socket(int domain, int type, int protocol)
     printf("Creating socket test 2\n");
     for (i = 0; i < MAX_SOCKETS; i++)
     {
-        print(&SM[i]);
+        // print(&SM[i]);
 
         if (SM[i].is_free)
             break;
@@ -151,6 +151,7 @@ int m_bind(int sockfd, const char *source_ip, int source_port, const char *dest_
     // update the SM[i] table
     strcpy(SM[i].ip, dest_ip);
     SM[i].port = dest_port;
+    print(&SM[i]);
     // V(sem1);
     // P(sem2);
     if (sockinfo->sockfd != -1)
@@ -365,7 +366,7 @@ int main()
     printf("%d", ret);
     // run recvfrom
     char *buf2 = (char *)malloc(1024);
-    
+
 
     exit(EXIT_SUCCESS);
 }
