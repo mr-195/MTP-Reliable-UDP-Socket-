@@ -89,6 +89,8 @@ void *thread_R(void *arg)
                             {
                                 SM[i].flag_nospace = 1;
                             }
+                            // update the last acknowledged packet
+                            SM[i].last_ack = seq_num;
                         }
                         else if (buf[0] == ACK_TYPE)
                         {
@@ -226,7 +228,7 @@ void init_process()
         perror("shmget");
         exit(1);
     }
-    int key_sockinfo = ftok("shm", 66);
+    int key_sockinfo = ftok("shmfile", 66);
     SM = (shared_memory *)shmat(shmid_A, 0, 0);
 
     int shmid_sockinfo = shmget((key_t)key_sockinfo, sizeof(sock_info), IPC_CREAT | 0666);

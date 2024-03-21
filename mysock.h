@@ -17,6 +17,7 @@
 #include <sys/ipc.h>
 #include <sys/types.h>
 #include <sys/times.h>
+#define MAX_SEQUENCE_NUMBER 5
 #define MAX_WINDOW_SIZE 5
 #define MAX_BUFFER_SIZE 10
 #define MSG_ID_SIZE 2
