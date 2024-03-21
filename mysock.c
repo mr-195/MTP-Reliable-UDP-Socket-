@@ -301,43 +301,43 @@ int m_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *sr
 
 int m_close(int sockfd)
 {
-//     int shmid_A = shmget((key_t)key_SM, MAX_SOCKETS * sizeof(shared_memory), IPC_CREAT | 0666);
+    //     int shmid_A = shmget((key_t)key_SM, MAX_SOCKETS * sizeof(shared_memory), IPC_CREAT | 0666);
 
-//     shared_memory *SM = (shared_memory *)shmat(shmid_A, 0, 0);
-//     int shmid_sockinfo = shmget((key_t)key_sockinfo, sizeof(sock_info), IPC_CREAT | 0666);
-//     sock_info *sockinfo = shmat(shmid_sockinfo, 0, 0);
-//     int sem1 = semget(key_sem1, 1, IPC_CREAT | 0666);
-//     int sem2 = semget(key_sem2, 1, IPC_CREAT | 0666);
+    //     shared_memory *SM = (shared_memory *)shmat(shmid_A, 0, 0);
+    //     int shmid_sockinfo = shmget((key_t)key_sockinfo, sizeof(sock_info), IPC_CREAT | 0666);
+    //     sock_info *sockinfo = shmat(shmid_sockinfo, 0, 0);
+    //     int sem1 = semget(key_sem1, 1, IPC_CREAT | 0666);
+    //     int sem2 = semget(key_sem2, 1, IPC_CREAT | 0666);
 
-//     struct sembuf pop;
-//     struct sembuf vop;
-//     pop.sem_num = 0;
-//     pop.sem_op = -1;
-//     pop.sem_flg = 0;
-//     vop.sem_num = 0;
-//     vop.sem_op = 1;
-//     vop.sem_flg = 0;
+    //     struct sembuf pop;
+    //     struct sembuf vop;
+    //     pop.sem_num = 0;
+    //     pop.sem_op = -1;
+    //     pop.sem_flg = 0;
+    //     vop.sem_num = 0;
+    //     vop.sem_op = 1;
+    //     vop.sem_flg = 0;
 
-//     int i;
-//     for (i = 0; i < MAX_SOCKETS; i++)
-//     {
-//         if (SM[i].sockfd == sockfd)
-//             break;
-//     }
+    //     int i;
+    //     for (i = 0; i < MAX_SOCKETS; i++)
+    //     {
+    //         if (SM[i].sockfd == sockfd)
+    //             break;
+    //     }
 
-//     if (i == MAX_SOCKETS)
-//     {
-//         perror("[-] Address not found");
-//         exit(EXIT_FAILURE);
-//     }
+    //     if (i == MAX_SOCKETS)
+    //     {
+    //         perror("[-] Address not found");
+    //         exit(EXIT_FAILURE);
+    //     }
 
-//     if (SM[i].rbuff.front == SM[i].rbuff.rear)
-//     {
-//         errno = ENOMSG;
-//         exit(EXIT_FAILURE);
-//     }
-//     SM[i].is_free = 1;
-//     return close(sockfd);
+    //     if (SM[i].rbuff.front == SM[i].rbuff.rear)
+    //     {
+    //         errno = ENOMSG;
+    //         exit(EXIT_FAILURE);
+    //     }
+    //     SM[i].is_free = 1;
+    //     return close(sockfd);
     return NOT_IMPLEMENTED;
 }
 
@@ -365,7 +365,6 @@ int main()
     printf("%d", ret);
     // run recvfrom
     char *buf2 = (char *)malloc(1024);
-    
 
     exit(EXIT_SUCCESS);
 }
