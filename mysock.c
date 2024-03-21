@@ -393,7 +393,11 @@ int main()
     // run recvfrom
     char *buf2 = (char *)malloc(1024);
     struct sockaddr_in src_addr;
+    src_addr.sin_family = AF_INET;
+    src_addr.sin_port = htons(8080);
+    src_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
     socklen_t addrlen;
+    addrlen = sizeof(src_addr);
     ret = m_recvfrom(ret1, buf2, 1024, 0, (struct sockaddr *)&src_addr, &addrlen);
 
     exit(EXIT_SUCCESS);
