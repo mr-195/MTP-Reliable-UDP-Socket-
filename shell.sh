@@ -1,6 +1,5 @@
 #!/bin/bash
-read str
 git add .
-git commit -m str
+git commit -m "$1"
 git pull
 git push
