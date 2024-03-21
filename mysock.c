@@ -25,21 +25,6 @@ int cur_init()
     return 0;
 }
 
-// typedef struct
-// {
-//     int is_free;
-//     pid_t pid;
-//     int sockfd;
-//     char ip[20];
-//     int port;
-//     int flag_nospace;
-//     int last_ack;
-//     send_window swnd;
-//     send_buff sbuff;
-//     recv_window rwnd;
-//     recv_buff rbuff;
-// } shared_memory;
-
 void print(shared_memory *SM)
 {
     printf("is_free-> %d  pid-> %d  sockfd-> %d  ip-> %s  port-> %d  flag_nospace=%d  last_ack-> %d\n", SM->is_free, SM->pid, SM->sockfd, SM->port, SM->flag_nospace, SM->last_ack);
