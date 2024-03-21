@@ -19,5 +19,6 @@
         "ostream": "c",
         "sstream": "c",
         "streambuf": "c"
-    }
+    },
+    "C_Cpp.default.compilerPath": "/usr/bin/g++"
 }

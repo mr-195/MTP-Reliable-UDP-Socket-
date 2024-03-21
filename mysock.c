@@ -1,5 +1,29 @@
 #include "mysock.h"
 
+// int cur_init(){
+//     `
+// }
+
+
+// typedef struct
+// {
+//     int is_free;
+//     pid_t pid;
+//     int sockfd;
+//     char ip[20];
+//     int port;
+//     int flag_nospace;
+//     int last_ack;
+//     send_window swnd;
+//     send_buff sbuff;
+//     recv_window rwnd;
+//     recv_buff rbuff;
+// } shared_memory;
+
+void print(shared_memory *SM){
+    printf("is_free-> %d  pid-> %d  sockfd-> %d  ip-> %s  port-> %d  flag_nospace=%d  last_ack-> %d\n",SM->is_free,SM->pid,SM->sockfd,SM->port,SM->flag_nospace,SM->last_ack);
+}
+
 int m_socket(int domain, int type, int protocol)
 {
     // create a UDP socket
@@ -42,12 +66,14 @@ int m_socket(int domain, int type, int protocol)
     int i;
     for (i = 0; i < MAX_SOCKETS; i++)
     {
+        print(&SM[i]);
         if (SM[i].is_free)
             break;
     }
     if (i == MAX_SOCKETS)
     {
         errno = ENOBUFS;
+        return -1;
     }
     else
     {
@@ -67,7 +93,7 @@ int m_socket(int domain, int type, int protocol)
         }
     }
 
-    return sockfd;
+    return i;
 }
 
 int m_bind(int sockfd, const char *source_ip, int source_port, const char *dest_ip, int dest_port)
@@ -159,7 +185,7 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags, const struct so
     char ip[20];
     strcpy(ip, inet_ntoa(addr->sin_addr));
     int port = ntohs(addr->sin_port);
-    if (strcmp(SM[i].ip , ip) && SM[i].port == port)
+    if (strcmp(SM[i].ip, ip) && SM[i].port == port)
     {
         // write message to the sender side buffer
         send_packet *spkt = (send_packet *)malloc(sizeof(send_packet));
@@ -167,8 +193,11 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags, const struct so
         int offset = 0;
 
         // Copy the DATA_TYPE to new_buf
-        strcpy(new_buf, DATA_TYPE);
-        offset += strlen(DATA_TYPE); // Update offset
+        char temp[2];
+        temp[1]=0;
+        temp[0]=DATA_TYPE;
+        strcpy(new_buf, temp);
+        offset += strlen(temp); // Update offset //size issue could be there
 
         // Convert and copy the sequence number to new_buf
         short seq_number = htons(spkt->sequence_number); // Assuming sequence_number is short
@@ -183,6 +212,7 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags, const struct so
         memcpy(spkt->data, new_buf, offset);
 
         spkt->to_addr = *addr;
+        SM[i].sbuff.buffer[SM[i].sbuff.rear] = spkt;
         SM[i].sbuff.buffer[SM[i].sbuff.rear] = spkt;
         SM[i].sbuff.rear=(SM[i].sbuff.rear+1)%SM[i].sbuff.size;
     }
@@ -231,28 +261,70 @@ int m_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *sr
         exit(EXIT_FAILURE);
     }
 
-
-
-    if(SM[i].rbuff.front==SM[i].rbuff.rear){
-        errno=ENOMSG;
+    if (SM[i].rbuff.front == SM[i].rbuff.rear)
+    {
+        errno = ENOMSG;
         exit(EXIT_FAILURE);
     }
 
-
-    recv_packet * rpkt=SM[i].rbuff.buffer[SM[i].rbuff.front];
-
+    recv_packet *rpkt = SM[i].rbuff.buffer[SM[i].rbuff.front];
+    rpkt = SM[i].rbuff.buffer[SM[i].rbuff.front];
+    SM[i].rbuff.buffer[SM[i].rbuff.front] = NULL;
+    SM[i].rbuff.front = (SM[i].rbuff.front + 1) % SM[i].rbuff.size;
 }
 
 int m_close(int sockfd)
 {
+    int shmid_A = shmget((key_t)key_SM, MAX_SOCKETS * sizeof(shared_memory), IPC_CREAT | 0666);
+
+    shared_memory *SM = (shared_memory *)shmat(shmid_A, 0, 0);
+    int shmid_sockinfo = shmget((key_t)key_sockinfo, sizeof(sock_info), IPC_CREAT | 0666);
+    sock_info *sockinfo = shmat(shmid_sockinfo, 0, 0);
+    int sem1 = semget(key_sem1, 1, IPC_CREAT | 0666);
+    int sem2 = semget(key_sem2, 1, IPC_CREAT | 0666);
+
+    struct sembuf pop;
+    struct sembuf vop;
+    pop.sem_num = 0;
+    pop.sem_op = -1;
+    pop.sem_flg = 0;
+    vop.sem_num = 0;
+    vop.sem_op = 1;
+    vop.sem_flg = 0;
+
+    int i;
+    for (i = 0; i < MAX_SOCKETS; i++)
+    {
+        if (SM[i].sockfd == sockfd)
+            break;
+    }
+
+    if (i == MAX_SOCKETS)
+    {
+        perror("[-] Address not found");
+        exit(EXIT_FAILURE);
+    }
+
+    if (SM[i].rbuff.front == SM[i].rbuff.rear)
+    {
+        errno = ENOMSG;
+        exit(EXIT_FAILURE);
+    }
+    SM[i].is_free = 1;
+    return close(sockfd);
 }
 
 int dropMessage(float p)
 {
+    return NOT_IMPLEMENTED;
 }
 
 int main()
 {
+    //testing m_socket()
+
+    int ret=m_socket(AF_INET,SOCK_MTP,0);
+    printf("%d\n",ret);
 
     exit(EXIT_SUCCESS);
 }

@@ -1,12 +1,3 @@
-#define MAX_WINDOW_SIZE 5
-#define MAX_BUFFER_SIZE 10
-#define MAX_FRAME_SIZE 10
-#define MSG_ID_SIZE 2
-#define MAX_SOCKETS 25
-#define SOCK_MTP 15
-#define ACK_TYPE 'A'
-#define DATA_TYPE 'D'
-#define KEY_SM 1234
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -25,18 +16,21 @@
 #include <sys/sem.h>
 #include <sys/ipc.h>
 #include <sys/types.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <sys/wait.h>
-#include <sys/types.h>
-#include <sys/select.h>
-#include <sys/time.h>
-// #define key_SM  1
-// #define key_sockinfo  2
-// #define key_sem1  3
-// #define key_sem2 4
+#include <sys/times.h>
+#define MAX_WINDOW_SIZE 5
+#define MAX_BUFFER_SIZE 10
+#define MSG_ID_SIZE 2
+#define MAX_SOCKETS 25
+#define SOCK_MTP 15
+#define ACK_TYPE 'A'
+#define DATA_TYPE 'D'
+#define KEY_SM 1234
+#define NOT_IMPLEMENTED 69
+#define key_SM  1
+#define key_sockinfo  2
+#define key_sem1  3
+#define key_sem2 4
 #define TYPE_SIZE sizeof(char)
-#define MSG_ID_SIZE sizeof(short)
 #define MAX_FRAME_SIZE 1024
 #define T 5
 #define P(semid) semop(semid,&pop,1)
