@@ -16,6 +16,12 @@ void cur_init()
     int key_sem2 = ftok("/home/", 'D');
     int sem1 = semget((key_t)key_sem1, 1, IPC_CREAT | 0666);
     int sem2 = semget((key_t)key_sem2, 1, IPC_CREAT | 0666);
+    int key_sem3 = ftok("/home/", 'E'); // semaphore for shared memory SM 
+    int sem_SM = semget((key_t)key_sem3, 1, IPC_CREAT | 0666);
+    // initialize the semaphores
+    semctl(sem1, 0, SETVAL, 0);
+    semctl(sem2, 0, SETVAL, 0);
+    semctl(sem_SM, 0, SETVAL, 1);
     struct sembuf pop, vop;
     pop.sem_num = 0;
     pop.sem_op = -1;
@@ -23,6 +29,7 @@ void cur_init()
     vop.sem_num = 0;
     vop.sem_op = 1;
     vop.sem_flg = 0;
+    P(sem_SM);
     sockinfo->sockfd = 0;
     sockinfo->port = 0;
     sockinfo->ip[0] = '\0';
@@ -43,7 +50,7 @@ void cur_init()
         SM[i].rbuff.rear = 0;
         SM[i].rbuff.size = 0;
     }
-    
+
     recv_packet *rpkt = (recv_packet *)malloc(sizeof(recv_packet));
     rpkt->sequence_number = 0;
     rpkt->type = DATA_TYPE;
@@ -52,6 +59,7 @@ void cur_init()
     rpkt->from_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
     strcpy(rpkt->data, "Hello");
     SM[0].rbuff.buffer[0] = rpkt;
+    V(sem_SM);
     shmdt(SM);
     shmdt(sockinfo);
     // return 0;
@@ -83,6 +91,8 @@ int m_socket(int domain, int type, int protocol)
     int key_sem2 = ftok("/home/", 'D');
     int sem1 = semget((key_t)key_sem1, 1, IPC_CREAT | 0666);
     int sem2 = semget((key_t)key_sem2, 1, IPC_CREAT | 0666);
+    int key_sem3 = ftok("/home/", 'E'); // semaphore for shared memory SM 
+    int sem_SM = semget((key_t)key_sem3, 1, IPC_CREAT | 0666);
 
     struct sembuf pop;
     struct sembuf vop;
@@ -109,6 +119,7 @@ int m_socket(int domain, int type, int protocol)
     // update SM[i]
 
     int i;
+    P(sem_SM);
     printf("Creating socket test 2\n");
     for (i = 0; i < MAX_SOCKETS; i++)
     {
@@ -118,6 +129,7 @@ int m_socket(int domain, int type, int protocol)
     if (i == MAX_SOCKETS)
     {
         errno = ENOBUFS;
+        V(sem_SM);
         return -1;
     }
     else
@@ -130,15 +142,18 @@ int m_socket(int domain, int type, int protocol)
             memset(&sockinfo, 0, sizeof(sockinfo));
             SM[i].sockfd = sockfd;
             // printf("sockfd is %d\n", sockfd);
+            V(sem_SM);
             return i;
         }
         else
         {
             memset(&sockinfo, 0, sizeof(sockinfo));
             errno = ENOBUFS;
+            V(sem_SM);
             exit(EXIT_FAILURE);
         }
     }
+    V(sem_SM);
     shmdt(SM);
     shmdt(sockinfo);
     return i;
@@ -157,6 +172,8 @@ int m_bind(int sockfd, const char *source_ip, int source_port, const char *dest_
     int key_sem2 = ftok("/home/", 'D');
     int sem1 = semget((key_t)key_sem1, 1, IPC_CREAT | 0666);
     int sem2 = semget((key_t)key_sem2, 1, IPC_CREAT | 0666);
+    int key_sem3 = ftok("/home/", 'E'); // semaphore for shared memory SM
+    int sem_SM = semget((key_t)key_sem3, 1, IPC_CREAT | 0666);
 
     struct sembuf pop;
     struct sembuf vop;
@@ -168,9 +185,10 @@ int m_bind(int sockfd, const char *source_ip, int source_port, const char *dest_
     vop.sem_flg = 0;
     int i;
     // printf("sockfd is %d ",sockfd);
+    P(sem_SM);
     for (i = 0; i < MAX_SOCKETS; i++)
     {
-        printf("i::::%d\n", i);
+        // printf("i::::%d\n", i);
         print(&SM[i]);
         if (i == sockfd)
             break;
@@ -197,14 +215,17 @@ int m_bind(int sockfd, const char *source_ip, int source_port, const char *dest_
     {
         // printf("sockinfo->sockfd is %d\n", sockinfo->sockfd);
         memset(&sockinfo, 0, sizeof(sockinfo));
+        V(sem_SM);
         return 0;
     }
     else
     {
         memset(&sockinfo, 0, sizeof(sockinfo));
         errno = ENOBUFS;
+        V(sem_SM);
         exit(EXIT_FAILURE);
     }
+    V(sem_SM);
     shmdt(SM);
     shmdt(sockinfo);
     return 0;
@@ -223,6 +244,8 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags, const struct so
     int key_sem2 = ftok("/home/", 'D');
     int sem1 = semget((key_t)key_sem1, 1, IPC_CREAT | 0666);
     int sem2 = semget((key_t)key_sem2, 1, IPC_CREAT | 0666);
+    int key_sem3 = ftok("/home/", 'E'); // semaphore for shared memory SM
+    int sem_SM = semget((key_t)key_sem3, 1, IPC_CREAT | 0666);
 
     struct sembuf pop;
     struct sembuf vop;
@@ -245,7 +268,7 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags, const struct so
         // exit(EXIT_FAILURE);
     }
     struct sockaddr_in *addr = (struct sockaddr_in *)dest_addr;
-
+    P(sem_SM);
     char ip[20];
     strcpy(ip, inet_ntoa(addr->sin_addr));
     int port = ntohs(addr->sin_port);
@@ -282,11 +305,14 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags, const struct so
         spkt->to_addr = *addr;
         SM[i].sbuff.buffer[SM[i].sbuff.rear] = spkt;
         SM[i].sbuff.rear = (SM[i].sbuff.rear + 1) % SM[i].sbuff.size;
+        V(sem_SM);
+
     }
     else
     {
         // set global ERROR to ENOBUFS
         errno = ENOBUFS;
+        V(sem_SM);
         return -1;
     }
 
@@ -306,6 +332,8 @@ int m_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *sr
     int key_sem2 = ftok("/home/", 'D');
     int sem1 = semget((key_t)key_sem1, 1, IPC_CREAT | 0666);
     int sem2 = semget((key_t)key_sem2, 1, IPC_CREAT | 0666);
+    int key_sem3 = ftok("/home/", 'E'); // semaphore for shared memory SM 
+    int sem_SM = semget((key_t)key_sem3, 1, IPC_CREAT | 0666);
 
     struct sembuf pop;
     struct sembuf vop;
@@ -326,25 +354,17 @@ int m_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *sr
         perror("[-] Address not found");
         exit(EXIT_FAILURE);
     }
-
+    P(sem_SM);
     if (SM[i].rbuff.front == SM[i].rbuff.rear)
     {
         errno = ENOMSG;
         // exit(EXIT_FAILURE);
     }
     printf("SM[i].rbuff.front is %d\n", SM[i].rbuff.front);
-    recv_packet *rpkt = SM[i].rbuff.buffer[SM[i].rbuff.front]; //first message in the buffer
+    recv_packet *rpkt = SM[i].rbuff.buffer[SM[i].rbuff.front]; // first message in the buffer
     printf("rpkt->data is %s\n", rpkt->data);
     SM[i].rbuff.buffer[SM[i].rbuff.front] = NULL;
     SM[i].rbuff.front = (SM[i].rbuff.front + 1) % SM[i].rbuff.size;
-    // // // store the first message in buf 
-    // printf("i=> %d\n",i);
-    // // printf("i=> %d \trpkt data => %s\n", i,rpkt->data);
-    // printf("Data in SM[0]=== %s\n",SM[0].rbuff.buffer[0]->data);
-    // if(rpkt){
-    //     printf("Not null!\n");
-    // }
-    // printf("rpkt->data is %s\n", rpkt->data);
     strcpy((char *)buf, rpkt->data);
     // // return no of bytes received
     return len;
@@ -352,13 +372,17 @@ int m_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *sr
 
 int m_close(int sockfd)
 {
-    //     int shmid_A = shmget((key_t)key_SM, MAX_SOCKETS * sizeof(shared_memory), IPC_CREAT | 0666);
+    int key_SM = ftok("/home/", 'A');
+    int shmid_A = shmget((key_t)key_SM, MAX_SOCKETS * sizeof(shared_memory), IPC_CREAT | 0666);
 
-    //     shared_memory *SM = (shared_memory *)shmat(shmid_A, 0, 0);
-    //     int shmid_sockinfo = shmget((key_t)key_sockinfo, sizeof(sock_info), IPC_CREAT | 0666);
-    //     sock_info *sockinfo = shmat(shmid_sockinfo, 0, 0);
-    //     int sem1 = semget(key_sem1, 1, IPC_CREAT | 0666);
-    //     int sem2 = semget(key_sem2, 1, IPC_CREAT | 0666);
+    shared_memory *SM = (shared_memory *)shmat(shmid_A, 0, 0);
+    int key_sockinfo = ftok("/home/", 'B');
+    int shmid_sockinfo = shmget((key_t)key_sockinfo, sizeof(sock_info), IPC_CREAT | 0666);
+    sock_info *sockinfo = shmat(shmid_sockinfo, 0, 0);
+    int key_sem1 = ftok("/home/", 'C');
+    int key_sem2 = ftok("/home/", 'D');
+    int sem1 = semget((key_t)key_sem1, 1, IPC_CREAT | 0666);
+    int sem2 = semget((key_t)key_sem2, 1, IPC_CREAT | 0666);
 
     //     struct sembuf pop;
     //     struct sembuf vop;
@@ -402,7 +426,7 @@ int main()
     // testing m_socket()
     cur_init();
     int ret1 = m_socket(AF_INET, SOCK_MTP, 0); // working
-    printf("%d\n", ret1);
+    printf("ret from m_socket => %d\n", ret1);
     // run bind
     int ret = m_bind(ret1, "127.0.0.1", 8080, "127.0.0.1", 8080); // working
     printf("%d\n", ret);
