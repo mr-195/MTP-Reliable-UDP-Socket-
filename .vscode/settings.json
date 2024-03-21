@@ -20,5 +20,6 @@
         "sstream": "c",
         "streambuf": "c"
     },
-    "C_Cpp.default.compilerPath": "/usr/bin/g++"
+    "C_Cpp.default.compilerPath": "/usr/bin/g++",
+    "C_Cpp.errorSquiggles": "disabled"
 }

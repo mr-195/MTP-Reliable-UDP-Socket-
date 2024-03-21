@@ -1,9 +1,29 @@
 #include "mysock.h"
 
-// int cur_init(){
-//     `
-// }
+int cur_init()
+{
+    int shmid_A = shmget((key_t)key_SM, MAX_SOCKETS * sizeof(shared_memory), IPC_CREAT | 0666);
 
+    shared_memory *SM = (shared_memory *)shmat(shmid_A, 0, 0);
+    int shmid_sockinfo = shmget((key_t)key_sockinfo, sizeof(sock_info), IPC_CREAT | 0666);
+    sock_info *sockinfo = shmat(shmid_sockinfo, 0, 0);
+    int sem1 = semget(key_sem1, 1, IPC_CREAT | 0666);
+    int sem2 = semget(key_sem2, 1, IPC_CREAT | 0666);
+
+    struct sembuf pop;
+    struct sembuf vop;
+    pop.sem_num = 0;
+    pop.sem_op = -1;
+    pop.sem_flg = 0;
+    vop.sem_num = 0;
+    vop.sem_op = 1;
+    vop.sem_flg = 0;
+    for (int i = 0; i < MAX_SOCKETS; i++)
+    {
+        SM[i].is_free = 1;
+    }
+    return 0;
+}
 
 // typedef struct
 // {
@@ -20,8 +40,9 @@
 //     recv_buff rbuff;
 // } shared_memory;
 
-void print(shared_memory *SM){
-    printf("is_free-> %d  pid-> %d  sockfd-> %d  ip-> %s  port-> %d  flag_nospace=%d  last_ack-> %d\n",SM->is_free,SM->pid,SM->sockfd,SM->port,SM->flag_nospace,SM->last_ack);
+void print(shared_memory *SM)
+{
+    printf("is_free-> %d  pid-> %d  sockfd-> %d  ip-> %s  port-> %d  flag_nospace=%d  last_ack-> %d\n", SM->is_free, SM->pid, SM->sockfd, SM->port, SM->flag_nospace, SM->last_ack);
 }
 
 int m_socket(int domain, int type, int protocol)
@@ -75,8 +96,8 @@ int m_socket(int domain, int type, int protocol)
     }
     else
     {
-        V(sem1);
-        P(sem2);
+        // V(sem1);
+        // P(sem2);
         if (sockinfo->sockfd != -1)
         {
             memset(sockinfo, 0, sizeof(sockinfo));
@@ -184,8 +205,8 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags, const struct so
 
         // Copy the DATA_TYPE to new_buf
         char temp[2];
-        temp[1]=0;
-        temp[0]=DATA_TYPE;
+        temp[1] = 0;
+        temp[0] = DATA_TYPE;
         strcpy(new_buf, temp);
         offset += strlen(temp); // Update offset //size issue could be there
 
@@ -203,7 +224,7 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags, const struct so
 
         spkt->to_addr = *addr;
         SM[i].sbuff.buffer[SM[i].sbuff.rear] = spkt;
-        SM[i].sbuff.rear=(SM[i].sbuff.rear+1)%SM[i].sbuff.size;
+        SM[i].sbuff.rear = (SM[i].sbuff.rear + 1) % SM[i].sbuff.size;
     }
     else
     {
@@ -305,10 +326,10 @@ int dropMessage(float p)
 
 int main()
 {
-    //testing m_socket()
-
-    int ret=m_socket(AF_INET,SOCK_MTP,0);
-    printf("%d\n",ret);
+    // testing m_socket()
+    cur_init();
+    int ret = m_socket(AF_INET, SOCK_MTP, 0);
+    printf("%d\n", ret);
 
     exit(EXIT_SUCCESS);
 }
