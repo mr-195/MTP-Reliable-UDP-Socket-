@@ -113,7 +113,6 @@ int m_socket(int domain, int type, int protocol)
             exit(EXIT_FAILURE);
         }
     }
-
     return i;
 }
 
