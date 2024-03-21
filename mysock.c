@@ -36,7 +36,22 @@ void cur_init()
         SM[i].pid = -1;
         SM[i].flag_nospace = 0;
         SM[i].last_ack = 0;
+        SM[i].sbuff.front = 0;
+        SM[i].sbuff.rear = 0;
+        SM[i].sbuff.size = 0;
+        SM[i].rbuff.front = 0;
+        SM[i].rbuff.rear = 0;
+        SM[i].rbuff.size = 0;
     }
+    
+    recv_packet *rpkt = (recv_packet *)malloc(sizeof(recv_packet));
+    rpkt->sequence_number = 0;
+    rpkt->type = DATA_TYPE;
+    rpkt->from_addr.sin_family = AF_INET;
+    rpkt->from_addr.sin_port = htons(8080);
+    rpkt->from_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    strcpy(rpkt->data, "Hello");
+    SM[0].rbuff.buffer[0] = rpkt;
     shmdt(SM);
     shmdt(sockinfo);
     // return 0;
@@ -315,14 +330,23 @@ int m_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *sr
     if (SM[i].rbuff.front == SM[i].rbuff.rear)
     {
         errno = ENOMSG;
-        exit(EXIT_FAILURE);
+        // exit(EXIT_FAILURE);
     }
-
-    recv_packet *rpkt = SM[i].rbuff.buffer[SM[i].rbuff.front];
+    printf("SM[i].rbuff.front is %d\n", SM[i].rbuff.front);
+    recv_packet *rpkt = SM[i].rbuff.buffer[SM[i].rbuff.front]; //first message in the buffer
+    printf("rpkt->data is %s\n", rpkt->data);
     SM[i].rbuff.buffer[SM[i].rbuff.front] = NULL;
     SM[i].rbuff.front = (SM[i].rbuff.front + 1) % SM[i].rbuff.size;
-
-    // return no of bytes received
+    // // // store the first message in buf 
+    // printf("i=> %d\n",i);
+    // // printf("i=> %d \trpkt data => %s\n", i,rpkt->data);
+    // printf("Data in SM[0]=== %s\n",SM[0].rbuff.buffer[0]->data);
+    // if(rpkt){
+    //     printf("Not null!\n");
+    // }
+    // printf("rpkt->data is %s\n", rpkt->data);
+    strcpy((char *)buf, rpkt->data);
+    // // return no of bytes received
     return len;
 }
 
@@ -389,7 +413,7 @@ int main()
     dest_addr.sin_port = htons(8080);
     dest_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
     ret = m_sendto(ret1, buf, strlen(buf), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
-    printf("%d", ret);
+    printf("ret sendto => %d\n", ret);
     // run recvfrom
     char *buf2 = (char *)malloc(1024);
     struct sockaddr_in src_addr;
@@ -399,6 +423,8 @@ int main()
     socklen_t addrlen;
     addrlen = sizeof(src_addr);
     ret = m_recvfrom(ret1, buf2, 1024, 0, (struct sockaddr *)&src_addr, &addrlen);
+    printf("ret recv_from=> %d \n", ret);
+    printf("buf2 => %s\n", buf2);
 
     exit(EXIT_SUCCESS);
 }
