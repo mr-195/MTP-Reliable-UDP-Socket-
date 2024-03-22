@@ -1,22 +1,25 @@
 #include "mysock.h"
 #include <sys/time.h>
-
+#define P(s) semop(s, &pop, 1) /* pop is the structure we pass for doing \
+                  the P(s) operation */
+#define V(s) semop(s, &vop, 1) /* vop is the structure we pass for doing \
+                  the V(s) operation */
 void cur_init()
 {
     struct timeval seed;
     gettimeofday(&seed, NULL);
     srand(seed.tv_usec);
-    int key_SM = ftok("/home/", 'A');
+    int key_SM = ftok(".", 'A');
     int shmid_A = shmget((key_t)key_SM, MAX_SOCKETS * sizeof(shared_memory), IPC_CREAT | 0666);
-    int key_sockinfo = ftok("/home/", 'B');
+    int key_sockinfo = ftok(".", 'B');
     shared_memory *SM = (shared_memory *)shmat(shmid_A, 0, 0);
     int shmid_sockinfo = shmget((key_t)key_sockinfo, sizeof(sock_info), IPC_CREAT | 0666);
     sock_info *sockinfo = (sock_info *)shmat(shmid_sockinfo, 0, 0);
-    int key_sem1 = ftok("/home/", 'C');
-    int key_sem2 = ftok("/home/", 'D');
+    int key_sem1 = ftok(".", 'C');
+    int key_sem2 = ftok(".", 'D');
     int sem1 = semget((key_t)key_sem1, 1, IPC_CREAT | 0666);
     int sem2 = semget((key_t)key_sem2, 1, IPC_CREAT | 0666);
-    int key_sem3 = ftok("/home/", 'E'); // semaphore for shared memory SM 
+    int key_sem3 = ftok(".", 'E'); // semaphore for shared memory SM
     int sem_SM = semget((key_t)key_sem3, 1, IPC_CREAT | 0666);
     // initialize the semaphores
     semctl(sem1, 0, SETVAL, 0);
@@ -76,23 +79,23 @@ int m_socket(int domain, int type, int protocol)
     struct timeval seed;
     gettimeofday(&seed, NULL);
     srand(seed.tv_usec);
-    int key_SM = ftok("/home/", 'A');
-    int shmid_A = shmget((key_t)key_SM, MAX_SOCKETS * sizeof(shared_memory), 0666 | IPC_CREAT);
-    int key_sockinfo = ftok("/home/", 'B');
+    key_t key_SM = ftok(".", 'A');
+    int shmid_A = shmget(key_SM, MAX_SOCKETS * sizeof(shared_memory), 0666);
+    int key_sockinfo = ftok(".", 'B');
     shared_memory *SM = (shared_memory *)shmat(shmid_A, 0, 0);
-    int shmid_sockinfo = shmget((key_t)key_sockinfo, sizeof(sock_info), 0666 | IPC_CREAT);
+    int shmid_sockinfo = shmget((key_t)key_sockinfo, sizeof(sock_info),0666);
     sock_info *sockinfo = shmat(shmid_sockinfo, 0, 0);
     if (sockinfo == (void *)-1)
     {
         perror("[-] Error in mapping sockinfo");
         exit(EXIT_FAILURE);
     }
-    int key_sem1 = ftok("/home/", 'C');
-    int key_sem2 = ftok("/home/", 'D');
-    int sem1 = semget((key_t)key_sem1, 1, IPC_CREAT | 0666);
-    int sem2 = semget((key_t)key_sem2, 1, IPC_CREAT | 0666);
-    int key_sem3 = ftok("/home/", 'E'); // semaphore for shared memory SM 
-    int sem_SM = semget((key_t)key_sem3, 1, IPC_CREAT | 0666);
+    int key_sem1 = ftok(".", 'C');
+    int key_sem2 = ftok(".", 'D');
+    int sem1 = semget((key_t)key_sem1, 1,0666);
+    int sem2 = semget((key_t)key_sem2, 1,0666);
+    int key_sem3 = ftok(".", 'E'); // semaphore for shared memory SM
+    int sem_SM = semget((key_t)key_sem3, 1,0666);
 
     struct sembuf pop;
     struct sembuf vop;
@@ -102,7 +105,7 @@ int m_socket(int domain, int type, int protocol)
     vop.sem_num = 0;
     vop.sem_op = 1;
     vop.sem_flg = 0;
-
+    
     if (type != SOCK_MTP)
     {
         perror("Socket type not supported");
@@ -161,19 +164,19 @@ int m_socket(int domain, int type, int protocol)
 
 int m_bind(int sockfd, const char *source_ip, int source_port, const char *dest_ip, int dest_port)
 {
-    int key_SM = ftok("/home/", 'A');
-    int shmid_A = shmget((key_t)key_SM, MAX_SOCKETS * sizeof(shared_memory), IPC_CREAT | 0666);
+    key_t key_SM = ftok(".", 'A');
+    int shmid_A = shmget(key_SM, MAX_SOCKETS * sizeof(shared_memory),0666);
 
     shared_memory *SM = (shared_memory *)shmat(shmid_A, 0, 0);
-    int key_sockinfo = ftok("/home/", 'B');
-    int shmid_sockinfo = shmget((key_t)key_sockinfo, sizeof(sock_info), IPC_CREAT | 0666);
+    int key_sockinfo = ftok(".", 'B');
+    int shmid_sockinfo = shmget((key_t)key_sockinfo, sizeof(sock_info),0666);
     sock_info *sockinfo = shmat(shmid_sockinfo, 0, 0);
-    int key_sem1 = ftok("/home/", 'C');
-    int key_sem2 = ftok("/home/", 'D');
-    int sem1 = semget((key_t)key_sem1, 1, IPC_CREAT | 0666);
-    int sem2 = semget((key_t)key_sem2, 1, IPC_CREAT | 0666);
-    int key_sem3 = ftok("/home/", 'E'); // semaphore for shared memory SM
-    int sem_SM = semget((key_t)key_sem3, 1, IPC_CREAT | 0666);
+    int key_sem1 = ftok(".", 'C');
+    int key_sem2 = ftok(".", 'D');
+    int sem1 = semget((key_t)key_sem1, 1,0666);
+    int sem2 = semget((key_t)key_sem2, 1,0666);
+    int key_sem3 = ftok(".", 'E'); // semaphore for shared memory SM
+    int sem_SM = semget((key_t)key_sem3, 1,0666);
 
     struct sembuf pop;
     struct sembuf vop;
@@ -233,18 +236,18 @@ int m_bind(int sockfd, const char *source_ip, int source_port, const char *dest_
 
 int m_sendto(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen)
 {
-    int key_SM = ftok("/home/", 'A');
-    int shmid_A = shmget((key_t)key_SM, MAX_SOCKETS * sizeof(shared_memory), IPC_CREAT | 0666);
+    key_t key_SM = ftok(".", 'A');
+    int shmid_A = shmget((key_t)key_SM, MAX_SOCKETS * sizeof(shared_memory), 0666);
 
     shared_memory *SM = (shared_memory *)shmat(shmid_A, 0, 0);
-    int key_sockinfo = ftok("/home/", 'B');
-    int shmid_sockinfo = shmget((key_t)key_sockinfo, sizeof(sock_info), IPC_CREAT | 0666);
+    int key_sockinfo = ftok(".", 'B');
+    int shmid_sockinfo = shmget((key_t)key_sockinfo, sizeof(sock_info), 0666);
     sock_info *sockinfo = shmat(shmid_sockinfo, 0, 0);
-    int key_sem1 = ftok("/home/", 'C');
-    int key_sem2 = ftok("/home/", 'D');
+    int key_sem1 = ftok(".", 'C');
+    int key_sem2 = ftok(".", 'D');
     int sem1 = semget((key_t)key_sem1, 1, IPC_CREAT | 0666);
     int sem2 = semget((key_t)key_sem2, 1, IPC_CREAT | 0666);
-    int key_sem3 = ftok("/home/", 'E'); // semaphore for shared memory SM
+    int key_sem3 = ftok(".", 'E'); // semaphore for shared memory SM
     int sem_SM = semget((key_t)key_sem3, 1, IPC_CREAT | 0666);
 
     struct sembuf pop;
@@ -306,7 +309,6 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags, const struct so
         SM[i].sbuff.buffer[SM[i].sbuff.rear] = spkt;
         SM[i].sbuff.rear = (SM[i].sbuff.rear + 1) % SM[i].sbuff.size;
         V(sem_SM);
-
     }
     else
     {
@@ -321,19 +323,21 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags, const struct so
 
 int m_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen)
 {
-    int key_SM = ftok("/home/", 'A');
-    int shmid_A = shmget((key_t)key_SM, MAX_SOCKETS * sizeof(shared_memory), IPC_CREAT | 0666);
-
+    key_t key_SM = ftok(".", 'A');
+    int shmid_A = shmget((key_t)key_SM, MAX_SOCKETS * sizeof(shared_memory),0666);
     shared_memory *SM = (shared_memory *)shmat(shmid_A, 0, 0);
-    int key_sockinfo = ftok("/home/", 'B');
-    int shmid_sockinfo = shmget((key_t)key_sockinfo, sizeof(sock_info), IPC_CREAT | 0666);
+    printf(" key_SM is %d\n", key_SM);
+    int key_sockinfo = ftok(".", 'B');
+    int shmid_sockinfo = shmget((key_t)key_sockinfo, sizeof(sock_info),0666);
     sock_info *sockinfo = shmat(shmid_sockinfo, 0, 0);
-    int key_sem1 = ftok("/home/", 'C');
-    int key_sem2 = ftok("/home/", 'D');
+    int key_sem1 = ftok(".", 'C');
+    int key_sem2 = ftok(".", 'D');
     int sem1 = semget((key_t)key_sem1, 1, IPC_CREAT | 0666);
     int sem2 = semget((key_t)key_sem2, 1, IPC_CREAT | 0666);
-    int key_sem3 = ftok("/home/", 'E'); // semaphore for shared memory SM 
-    int sem_SM = semget((key_t)key_sem3, 1, IPC_CREAT | 0666);
+    int key_sem3 = ftok(".", 'E'); // semaphore for shared memory SM
+    printf("key_sem3 is %d\n", key_sem3);
+    int sem_SM = semget((key_t)key_sem3, 1,0666);
+
 
     struct sembuf pop;
     struct sembuf vop;
@@ -360,27 +364,48 @@ int m_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *sr
         errno = ENOMSG;
         // exit(EXIT_FAILURE);
     }
+    // recv_packet *rpkt = (recv_packet *)malloc(sizeof(recv_packet));
+    // rpkt->sequence_number = 0;
+    // rpkt->type = DATA_TYPE;
+    // rpkt->from_addr.sin_family = AF_INET;
+    // rpkt->from_addr.sin_port = htons(8080);
+    // rpkt->from_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    // strcpy(rpkt->data, "Hello\0");
+    // SM[0].rbuff.buffer[0] = rpkt;
+    // printf("SM[0].rbuff.buffer[0]->data = %s\n", SM[0].rbuff.buffer[0]->data);
+    printf("i is => %d \n", i);
+    print(&SM[i]);
     printf("SM[i].rbuff.front is %d\n", SM[i].rbuff.front);
-    recv_packet *rpkt = SM[i].rbuff.buffer[SM[i].rbuff.front]; // first message in the buffer
-    printf("rpkt->data is %s\n", rpkt->data);
-    SM[i].rbuff.buffer[SM[i].rbuff.front] = NULL;
-    SM[i].rbuff.front = (SM[i].rbuff.front + 1) % SM[i].rbuff.size;
-    strcpy((char *)buf, rpkt->data);
+    recv_packet *rpkt1 = SM[i].rbuff.buffer[SM[i].rbuff.front]; // first message in the buffer
+    if (SM[i].rbuff.buffer[SM[i].rbuff.front] != NULL)
+        printf("SM[i].rbuff.buffer[SM[i].rbuff.front] => %d \n", SM[i].rbuff.buffer[SM[i].rbuff.front]->sequence_number);
+
+    // if (rpkt1 != NULL)
+    // {
+    //     printf("rpkt is not  NULL\n");
+    //     printf("rpkt->sequence_number is %d\n", rpkt1->sequence_number);
+    //     printf("rpkt->type is %c\n", rpkt1->type);
+    // }
+    // printf("rpkt->data is %s\n", rpkt1->data);
+    // SM[i].rbuff.buffer[SM[i].rbuff.front] = NULL;
+    // SM[i].rbuff.front = (SM[i].rbuff.front + 1) % SM[i].rbuff.size;
+    // strcpy((char *)buf, rpkt1->data);
+    V(sem_SM);
     // // return no of bytes received
     return len;
 }
 
 int m_close(int sockfd)
 {
-    int key_SM = ftok("/home/", 'A');
+    int key_SM = ftok(".", 'A');
     int shmid_A = shmget((key_t)key_SM, MAX_SOCKETS * sizeof(shared_memory), IPC_CREAT | 0666);
 
     shared_memory *SM = (shared_memory *)shmat(shmid_A, 0, 0);
-    int key_sockinfo = ftok("/home/", 'B');
+    int key_sockinfo = ftok(".", 'B');
     int shmid_sockinfo = shmget((key_t)key_sockinfo, sizeof(sock_info), IPC_CREAT | 0666);
     sock_info *sockinfo = shmat(shmid_sockinfo, 0, 0);
-    int key_sem1 = ftok("/home/", 'C');
-    int key_sem2 = ftok("/home/", 'D');
+    int key_sem1 = ftok(".", 'C');
+    int key_sem2 = ftok(".", 'D');
     int sem1 = semget((key_t)key_sem1, 1, IPC_CREAT | 0666);
     int sem2 = semget((key_t)key_sem2, 1, IPC_CREAT | 0666);
 
@@ -424,7 +449,7 @@ int dropMessage(float p)
 int main()
 {
     // testing m_socket()
-    cur_init();
+    // cur_init();
     int ret1 = m_socket(AF_INET, SOCK_MTP, 0); // working
     printf("ret from m_socket => %d\n", ret1);
     // run bind
