@@ -221,14 +221,14 @@ void *thread_G(void *arg)
 void init_process()
 {
     printf("Shared Memory\n");
-    int key_SM = ftok("shmfile", 65);
+    int key_SM = ftok("/home/",'A');
     int shmid_A = shmget((key_t)key_SM, MAX_SOCKETS * sizeof(shared_memory), IPC_CREAT | 0666);
     if (shmid_A == -1)
     {
         perror("shmget");
         exit(1);
     }
-    int key_sockinfo = ftok("shmfile", 66);
+    int key_sockinfo = ftok("/home/",'B');
     SM = (shared_memory *)shmat(shmid_A, 0, 0);
 
     int shmid_sockinfo = shmget((key_t)key_sockinfo, sizeof(sock_info), IPC_CREAT | 0666);
@@ -247,14 +247,26 @@ void init_process()
     // memset(sockinfo->ip, 0, sizeof(sockinfo->ip));
 
     // create two semaphores 1 and 2 sem1 and sem2
-    int key_sem1 = ftok("sem1", 67);
-    int key_sem2 = ftok("sem2", 68);
+    int key_sem1 = ftok("/home/",'C');
+    int key_sem2 = ftok("/home/", 'D');
     int sem1 = semget((key_t)key_sem1, 1, IPC_CREAT | 0666);
     int sem2 = semget((key_t)key_sem2, 1, IPC_CREAT | 0666);
+    int key_sem3 = ftok("/home/", 'E'); // semaphore for the shared memory SM
+    int sem_SM = semget((key_t)key_sem3, 1, IPC_CREAT | 0666);
+
     // initialize the semaphores
     semctl(sem1, 0, SETVAL, 0);
     semctl(sem2, 0, SETVAL, 0);
+    semctl(sem_SM, 0, SETVAL, 1);
+    struct sembuf pop, vop;
+    pop.sem_num = 0;
+    pop.sem_op = -1;
+    pop.sem_flg = 0;
+    vop.sem_num = 0;
+    vop.sem_op = 1;
+    vop.sem_flg = 0;
     // struct sembuf pop, vop;
+    P(sem_SM);
     // initialize shared memory
     printf("Initializing shared memory\n");
     for (int i = 0; i < MAX_SOCKETS; i++)
@@ -295,13 +307,7 @@ void init_process()
         SM[i].rwnd.size = 0;
     }
     printf("Initialization Done \n");
-    struct sembuf pop, vop;
-    pop.sem_num = 0;
-    pop.sem_op = -1;
-    pop.sem_flg = 0;
-    vop.sem_num = 0;
-    vop.sem_op = 1;
-    vop.sem_flg = 0;
+    V(sem_SM);
 
     // create thread R
     pthread_t threadR;
