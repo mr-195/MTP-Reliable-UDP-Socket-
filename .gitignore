@@ -1,5 +1,9 @@
 # Prerequisites
 *.d
+mysock
+myinitmsocket
+init
+keys
 
 # Object files
 *.o

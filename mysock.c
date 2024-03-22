@@ -412,14 +412,14 @@ int m_close(int sockfd)
     int sem1 = semget((key_t)key_sem1, 1, IPC_CREAT | 0666);
     int sem2 = semget((key_t)key_sem2, 1, IPC_CREAT | 0666);
 
-    //     struct sembuf pop;
-    //     struct sembuf vop;
-    //     pop.sem_num = 0;
-    //     pop.sem_op = -1;
-    //     pop.sem_flg = 0;
-    //     vop.sem_num = 0;
-    //     vop.sem_op = 1;
-    //     vop.sem_flg = 0;
+    // struct sembuf pop;
+    // struct sembuf vop;
+    // pop.sem_num = 0;
+    // pop.sem_op = -1;
+    // pop.sem_flg = 0;
+    // vop.sem_num = 0;
+    // vop.sem_op = 1;
+    // vop.sem_flg = 0;
 
     //     int i;
     //     for (i = 0; i < MAX_SOCKETS; i++)
