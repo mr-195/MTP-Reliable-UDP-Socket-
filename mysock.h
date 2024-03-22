@@ -96,7 +96,7 @@ typedef struct
     recv_window rwnd;
     recv_buff rbuff;
 } shared_memory;
-
+                
 typedef struct
 {
     int sockfd;
