@@ -17,7 +17,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include "msocket.h"
+#include "mysock.h"
+// #include "mysock.c"
 
 #define PORT_1 8000
 #define PORT_2 8001
@@ -51,14 +52,14 @@ int main()
     printf("Enter message: \n");
     scanf("%[^\n]s", msg);
     int msg_len = strlen(msg);
-    for(int i = 0; i < msg_len; i++)
-    {
+    // for(int i = 0; i < msg_len; i++)
+    // {
         if(m_sendto(sockfd, msg + i, 1, 0, (struct sockaddr *)&u2_addr, sizeof(u2_addr)) < 0)
         {
             perror("m_sendto");
             exit(1);
         }
-    }
+    // }
 
     while(1);
 

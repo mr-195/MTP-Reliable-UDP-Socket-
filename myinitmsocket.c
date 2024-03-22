@@ -1,4 +1,5 @@
 #include "mysock.h"
+#include "mysock.c"
 #include <sys/socket.h> // Add the necessary header file for the recvfrom function
 void *thread_R(void *arg);
 void *thread_S(void *arg);
@@ -315,15 +316,16 @@ void init_process()
             SM[i].rbuff.buffer[j] = NULL;
         }
     }
-    recv_packet *rpkt = (recv_packet *)malloc(sizeof(recv_packet));
-    rpkt->sequence_number = 0;
-    rpkt->type = DATA_TYPE;
-    rpkt->from_addr.sin_family = AF_INET;
-    rpkt->from_addr.sin_port = htons(8080);
-    rpkt->from_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-    strcpy(rpkt->data, "Hello\0");
-    SM[0].rbuff.buffer[0] = rpkt;
-    printf("SM[0].rbuff.buffer[0]->data = %s\n", SM[0].rbuff.buffer[0]->data);
+    // recv_packet *rpkt = (recv_packet *)malloc(sizeof(recv_packet));
+    // rpkt->sequence_number = 0;
+    // rpkt->type = DATA_TYPE;
+    // rpkt->from_addr.sin_family = AF_INET;
+    // rpkt->from_addr.sin_port = htons(8080);
+    // rpkt->from_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    // strcpy(rpkt->data, "Hello\0");
+    // memset(rpkt->data, 0, sizeof(rpkt->data));
+    // SM[0].rbuff.buffer[0] = rpkt;
+    // printf("SM[0].rbuff.buffer[0]->data = %s\n", SM[0].rbuff.buffer[0]->data);
     // detach 
     // shmdt(SM);
     V(sem_SM);
@@ -386,7 +388,6 @@ void init_process()
 
 int main()
 {
-    printf("Initiating process\n");
     init_process();
     return 0;
 }
