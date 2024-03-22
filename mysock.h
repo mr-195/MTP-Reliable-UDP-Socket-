@@ -44,7 +44,7 @@ typedef struct
 typedef struct
 {
     struct timeval time;
-    short sequence_number;
+    int sequence_number;
     char type;
     char data[1024];
     struct sockaddr_in to_addr;
@@ -91,6 +91,7 @@ typedef struct
     int port;
     int flag_nospace;
     int last_ack;
+    int last_seq;
     send_window swnd;
     send_buff sbuff;
     recv_window rwnd;
@@ -181,7 +182,7 @@ void cur_init()
 
 void print(shared_memory *SM)
 {
-    printf("is_free-> %d  pid-> %d  sockfd-> %d  ip-> %s  port-> %d  flag_nospace=%d  last_ack-> %d\n", SM->is_free, SM->pid, SM->sockfd, SM->ip, SM->port, SM->flag_nospace, SM->last_ack);
+    printf("is_free-> %d  pid-> %d  sockfd-> %d  ip-> %s  port-> %d  flag_nospace=%d  last_ack-> %d\n last_seq-> %d", SM->is_free, SM->pid, SM->sockfd, SM->ip, SM->port, SM->flag_nospace, SM->last_ack,SM->last_seq);
 }
 
 int m_socket(int domain, int type, int protocol)
@@ -248,9 +249,10 @@ int m_socket(int domain, int type, int protocol)
     }
     else
     {
+        SM[i].is_free = 0;
         SM[i].sockfd = sockfd;
-        // V(sem1);
-        // P(sem2);
+        V(sem1);
+        P(sem2);
         if (sockinfo->sockfd != -1)
         {
             memset(&sockinfo, 0, sizeof(sockinfo));
@@ -323,8 +325,8 @@ int m_bind(int sockfd, const char *source_ip, int source_port, const char *dest_
     SM[i].port = dest_port;
     // printf("%d==>\n", i);
     print(&SM[i]);
-    // V(sem1);
-    // P(sem2);
+    V(sem1);
+    P(sem2);
     if (sockinfo->sockfd != -1)
     {
         // printf("sockinfo->sockfd is %d\n", sockinfo->sockfd);
@@ -397,10 +399,10 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags, const struct so
         new_buf[0] = DATA_TYPE;
         // new_buf[1]=0;
         // get the last sequence number
-        int last_seq = SM[i].last_ack;
+        int lastSeq = SM[i].last_seq;
         // update the sequence number
-        spkt->sequence_number = last_seq;
-        SM[i].last_ack = (SM[i].last_ack + 1) % MAX_SEQUENCE_NUMBER;
+        spkt->sequence_number = lastSeq;
+        SM[i].last_seq = (SM[i].last_seq + 1) % MAX_SEQUENCE_NUMBER;
         // Convert and copy the sequence number to new_buf
         char seq_number[MSG_ID_SIZE]; // Assuming MSG_ID_SIZE is the size of short
         printf("spkt->sequence_number is %d\n", (int)spkt->sequence_number);
@@ -416,12 +418,20 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags, const struct so
         printf("spkt->data is %s and the len is %d\n", spkt->data); 
         // update all other fields of spkt
         spkt->type = DATA_TYPE;
-        // // get time of day and store in spkt->time
-        // gettimeofday(&spkt->time, NULL);
-        // // store the destination address in spkt->to_addr
-        // spkt->to_addr = *addr;
-        // SM[i].sbuff.buffer[SM[i].sbuff.rear] = spkt;
-        // SM[i].sbuff.rear = (SM[i].sbuff.rear + 1) % SM[i].sbuff.size;
+        // get time of day and store in spkt->time
+        gettimeofday(&spkt->time, NULL);
+        // store the destination address in spkt->to_addr
+        spkt->to_addr = *addr;
+        SM[i].sbuff.buffer[SM[i].sbuff.rear] = spkt;
+        printf("i => %d\n", i);
+        printf("SM[i].sbuff.buffer[SM[i].sbuff.rear]->data is %s\n", SM[i].sbuff.buffer[SM[i].sbuff.rear]->data);
+        SM[i].sbuff.rear = (SM[i].sbuff.rear + 1) % MAX_BUFFER_SIZE;
+        SM[i].sbuff.size++;
+        // update the send window 
+        SM[i].swnd.window[SM[i].swnd.rear] = spkt;
+        printf("SM[i].swnd.window[SM[i].swnd.rear]->data is %s\n", SM[i].swnd.window[SM[i].swnd.rear]->data);
+        SM[i].swnd.rear = (SM[i].swnd.rear + 1) % MAX_WINDOW_SIZE;
+        SM[i].swnd.size++;
         V(sem_SM);
     }
     else
