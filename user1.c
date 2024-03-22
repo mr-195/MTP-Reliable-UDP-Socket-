@@ -54,7 +54,7 @@ int main()
     int msg_len = strlen(msg);
     // for(int i = 0; i < msg_len; i++)
     // {
-        if(m_sendto(sockfd, msg + i, 1, 0, (struct sockaddr *)&u2_addr, sizeof(u2_addr)) < 0)
+        if(m_sendto(sockfd, msg, 1, 0, (struct sockaddr *)&u2_addr, sizeof(u2_addr)) < 0)
         {
             perror("m_sendto");
             exit(1);
