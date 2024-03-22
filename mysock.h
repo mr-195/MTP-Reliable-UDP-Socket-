@@ -16,7 +16,7 @@
 #include <sys/sem.h>
 #include <sys/ipc.h>
 #include <sys/types.h>
-#include <sys/times.h>
+#include <sys/time.h>
 #include <sys/select.h>
 
 #define MAX_SEQUENCE_NUMBER 5
