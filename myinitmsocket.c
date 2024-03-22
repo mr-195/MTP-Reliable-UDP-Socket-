@@ -242,6 +242,7 @@ void *thread_S(void *arg)
 // thread G
 void *thread_G(void *arg)
 {
+    return NULL;
 }
 void init_process()
 {

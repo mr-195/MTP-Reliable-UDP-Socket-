@@ -282,7 +282,9 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags, const struct so
         // write message to the sender side buffer
         send_packet *spkt = (send_packet *)malloc(sizeof(send_packet));
         char new_buf[MAX_FRAME_SIZE];
+        memset(new_buf,0,sizeof(new_buf));
         new_buf[0] = DATA_TYPE;
+        // new_buf[1]=0;
         // get the last sequence number
         int last_seq = SM[i].last_ack;
         // update the sequence number
@@ -292,6 +294,7 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags, const struct so
         char seq_number[MSG_ID_SIZE]; // Assuming MSG_ID_SIZE is the size of short
         printf("spkt->sequence_number is %d\n", (int)spkt->sequence_number);
         sprintf(seq_number, "%d", (int)spkt->sequence_number);
+        printf("strlen(new_buf) is %d and newbuf is currently %s\n", strlen(new_buf), new_buf);
         strcat(new_buf, seq_number);
 
         // Copy the message data (buf) to new_buf using strcat
@@ -299,15 +302,15 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags, const struct so
 
         // Copy new_buf to spkt->data using strcpy
         strcpy(spkt->data, new_buf);
-        printf("spkt->data is %s\n", spkt->data);
+        printf("spkt->data is %s and the len is %d\n", spkt->data); 
         // update all other fields of spkt
         spkt->type = DATA_TYPE;
-        // get time of day and store in spkt->time
-        gettimeofday(&spkt->time, NULL);
-        // store the destination address in spkt->to_addr
-        spkt->to_addr = *addr;
-        SM[i].sbuff.buffer[SM[i].sbuff.rear] = spkt;
-        SM[i].sbuff.rear = (SM[i].sbuff.rear + 1) % SM[i].sbuff.size;
+        // // get time of day and store in spkt->time
+        // gettimeofday(&spkt->time, NULL);
+        // // store the destination address in spkt->to_addr
+        // spkt->to_addr = *addr;
+        // SM[i].sbuff.buffer[SM[i].sbuff.rear] = spkt;
+        // SM[i].sbuff.rear = (SM[i].sbuff.rear + 1) % SM[i].sbuff.size;
         V(sem_SM);
     }
     else
@@ -364,15 +367,15 @@ int m_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *sr
         errno = ENOMSG;
         // exit(EXIT_FAILURE);
     }
-    // recv_packet *rpkt = (recv_packet *)malloc(sizeof(recv_packet));
-    // rpkt->sequence_number = 0;
-    // rpkt->type = DATA_TYPE;
-    // rpkt->from_addr.sin_family = AF_INET;
-    // rpkt->from_addr.sin_port = htons(8080);
-    // rpkt->from_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-    // strcpy(rpkt->data, "Hello\0");
-    // SM[0].rbuff.buffer[0] = rpkt;
-    // printf("SM[0].rbuff.buffer[0]->data = %s\n", SM[0].rbuff.buffer[0]->data);
+    recv_packet *rpkt = (recv_packet *)malloc(sizeof(recv_packet));
+    rpkt->sequence_number = 0;
+    rpkt->type = DATA_TYPE;
+    rpkt->from_addr.sin_family = AF_INET;
+    rpkt->from_addr.sin_port = htons(8080);
+    rpkt->from_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    strcpy(rpkt->data, "Hello\0");
+    SM[0].rbuff.buffer[0] = rpkt;
+    printf("SM[0].rbuff.buffer[0]->data = %s\n", SM[0].rbuff.buffer[0]->data);
     printf("i is => %d \n", i);
     print(&SM[i]);
     printf("SM[i].rbuff.front is %d\n", SM[i].rbuff.front);
@@ -380,18 +383,18 @@ int m_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *sr
     if (SM[i].rbuff.buffer[SM[i].rbuff.front] != NULL)
         printf("SM[i].rbuff.buffer[SM[i].rbuff.front] => %d \n", SM[i].rbuff.buffer[SM[i].rbuff.front]->sequence_number);
 
-    // if (rpkt1 != NULL)
-    // {
-    //     printf("rpkt is not  NULL\n");
-    //     printf("rpkt->sequence_number is %d\n", rpkt1->sequence_number);
-    //     printf("rpkt->type is %c\n", rpkt1->type);
-    // }
-    // printf("rpkt->data is %s\n", rpkt1->data);
-    // SM[i].rbuff.buffer[SM[i].rbuff.front] = NULL;
-    // SM[i].rbuff.front = (SM[i].rbuff.front + 1) % SM[i].rbuff.size;
-    // strcpy((char *)buf, rpkt1->data);
+    if (rpkt1 != NULL)
+    {
+        printf("rpkt is not  NULL\n");
+        printf("rpkt->sequence_number is %d\n", rpkt1->sequence_number);
+        printf("rpkt->type is %c\n", rpkt1->type);
+    }
+    printf("rpkt->data is %s\n", rpkt1->data);
+    SM[i].rbuff.buffer[SM[i].rbuff.front] = NULL;
+    SM[i].rbuff.front = (SM[i].rbuff.front + 1) % MAX_BUFFER_SIZE;
+    strcpy((char *)buf, rpkt1->data);
     V(sem_SM);
-    // // return no of bytes received
+    // return no of bytes received
     return len;
 }
 
@@ -472,8 +475,8 @@ int main()
     socklen_t addrlen;
     addrlen = sizeof(src_addr);
     ret = m_recvfrom(ret1, buf2, 1024, 0, (struct sockaddr *)&src_addr, &addrlen);
-    printf("ret recv_from=> %d \n", ret);
-    printf("buf2 => %s\n", buf2);
+    // printf("ret recv_from=> %d \n", ret);
+    // printf("buf2 => %s\n", buf2);
 
     exit(EXIT_SUCCESS);
 }
