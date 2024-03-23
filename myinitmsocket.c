@@ -70,7 +70,7 @@ void *thread_R(void *arg)
                     // pkt->from_addr.sin_addr.s_addr = inet_addr(SM[i].ip);
                     int len = sizeof(pkt.from_addr);
                     char buf[MAX_FRAME_SIZE];
-                    printf("Receiving packet\n");
+                    // printf("Receiving packet\n");
                     int n = recvfrom(SM[i].sockfd, buf, sizeof(buf), 0, (struct sockaddr *)&pkt.from_addr, &len);
                     if (n == -1)
                     {
@@ -184,7 +184,7 @@ void *thread_R(void *arg)
             for (int i = 0; i < MAX_SOCKETS; i++)
             {
                 // check if flag no space was set
-                printf("Checking for no space\n");
+                // printf("Checking for no space\n");
                 printf("SM[i].flag_nospace = %d\n", SM[i].flag_nospace);
                 if (SM[i].flag_nospace == 1)
                 {
@@ -207,7 +207,6 @@ void *thread_R(void *arg)
                     {
                         printf("Error sending ACK\n");
                     }
-                    printf("HEllo\n");
                     // update the reciever window
                     // doubt in this part
                     SM[i].rwnd.window[SM[i].rwnd.rear] = SM[i].rbuff.buffer[SM[i].rwnd.rear];
@@ -276,7 +275,7 @@ void *thread_S(void *arg)
                 printf(" j is %d\n", j);
                 printf("SM[i].swnd.window[j]->sequence = %s\n", SM[i].swnd.window[j].data);
                 timersub(&current_time, &SM[i].swnd.window[j].time, &diff);
-                printf("diff.tv_sec = %ld\n", diff.tv_sec);
+                // printf("diff.tv_sec = %ld\n", diff.tv_sec);
                 if (diff.tv_sec > T)
                 {
                     is_timeout = 1;
@@ -308,12 +307,12 @@ void *thread_S(void *arg)
             // if there is message in the sender buffer to be added to sender window
             while (SM[i].sbuff.size > 0)
             {
-                printf("Adding message to sender window\n");
+                // printf("Adding message to sender window\n");
                 // check if there is space in the sender window
                 if (SM[i].swnd.size < MAX_WINDOW_SIZE)
                 {
                     // add the message to the sender window
-                    printf("Checking for space\n");
+                    // printf("Checking for space\n");
                     // if(SM[i].sbuff.buffer[SM[i].sbuff.front] == NULL)
                     // {
                     //     printf("NULL message\n");

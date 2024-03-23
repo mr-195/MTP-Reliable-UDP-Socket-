@@ -26,8 +26,8 @@
 int main()
 {
     int sockfd;
-    printf("Creating socket\n");
-    if((sockfd = m_socket(AF_INET,SOCK_MTP,0)) < 0)
+    // printf("Creating socket\n");
+    if ((sockfd = m_socket(AF_INET, SOCK_MTP, 0)) < 0)
     {
         perror("msocket");
         exit(1);
@@ -42,7 +42,7 @@ int main()
     u2_addr.sin_port = htons(PORT_2);
     u2_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
-    if(m_bind(sockfd,"127.0.0.1",PORT_1,"127.0.0.1",PORT_2) < 0)
+    if (m_bind(sockfd, "127.0.0.1", PORT_1, "127.0.0.1", PORT_2) < 0)
     {
         perror("m_bind");
         exit(1);
@@ -54,14 +54,10 @@ int main()
     int msg_len = strlen(msg);
     // for(int i = 0; i < msg_len; i++)
     // {
-        if(m_sendto(sockfd, msg, 1, 0, (struct sockaddr *)&u2_addr, sizeof(u2_addr)) < 0)
-        {
-            perror("m_sendto");
-            exit(1);
-        }
-    // }
-
-   while(1);
-
-
+    if (m_sendto(sockfd, msg, 1, 0, (struct sockaddr *)&u2_addr, sizeof(u2_addr)) < 0)
+    {
+        perror("m_sendto");
+        exit(1);
+    }
+    return 0;
 }
