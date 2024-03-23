@@ -1,5 +1,5 @@
 #include "mysock.h"
-#include "mysock.c"
+// #include "mysock.c"
 #include <sys/socket.h> // Add the necessary header file for the recvfrom function
 void *thread_R(void *arg);
 void *thread_S(void *arg);
@@ -52,7 +52,7 @@ void *thread_R(void *arg)
                 }
             }
         }
-        V(sem_SM);
+        // V(sem_SM);
         timeout.tv_sec = 5;
         timeout.tv_usec = 0;
         int ret = select(max_fd + 1, &readfds, NULL, NULL, &timeout);
@@ -60,18 +60,18 @@ void *thread_R(void *arg)
         {
             for (int i = 0; i < MAX_SOCKETS; i++)
             {
-                P(sem_SM);
+                // P(sem_SM);
                 if (FD_ISSET(SM[i].sockfd, &readfds))
                 {
                     // receive the packet
-                    recv_packet *pkt = (recv_packet *)malloc(sizeof(recv_packet));
+                    recv_packet pkt ;
                     // pkt->from_addr.sin_family = AF_INET;
                     // pkt->from_addr.sin_port = htons(SM[i].port);
                     // pkt->from_addr.sin_addr.s_addr = inet_addr(SM[i].ip);
-                    int len = sizeof(pkt->from_addr);
+                    int len = sizeof(pkt.from_addr);
                     char buf[MAX_FRAME_SIZE];
                     printf("Receiving packet\n");
-                    int n = recvfrom(SM[i].sockfd, buf, sizeof(buf), 0, (struct sockaddr *)&pkt->from_addr, &len);
+                    int n = recvfrom(SM[i].sockfd, buf, sizeof(buf), 0, (struct sockaddr *)&pkt.from_addr, &len);
                     if (n == -1)
                     {
                         printf("Error receiving packet\n");
@@ -81,7 +81,7 @@ void *thread_R(void *arg)
                         // check if it is an DATA packet store in the reciver side message buffer
                         if (buf[0] == DATA_TYPE)
                         {
-                            pkt->type = DATA_TYPE;
+                            pkt.type = DATA_TYPE;
                             // extract the sequence number
                             int seq_num = 0;
                             for (int j = 1; j < MAX_FRAME_SIZE; j++)
@@ -95,9 +95,9 @@ void *thread_R(void *arg)
                             // store the entire content
                             for (int j = 0; j < MAX_FRAME_SIZE; j++)
                             {
-                                pkt->data[j] = buf[j];
+                                pkt.data[j] = buf[j];
                             }
-                            pkt->sequence_number = seq_num;
+                            pkt.sequence_number = seq_num;
 
                             // add the packet to the receive buffer
                             SM[i].rbuff.buffer[SM[i].rbuff.rear] = pkt;
@@ -110,14 +110,13 @@ void *thread_R(void *arg)
                             char seq_num_str[50];
                             sprintf(seq_num_str, "%d", seq_num);
                             strcat(ack_buf, seq_num_str);
-                            int n = sendto(SM[i].sockfd, ack_buf, MAX_FRAME_SIZE, 0, (struct sockaddr *)&pkt->from_addr, len);
+                            int n = sendto(SM[i].sockfd, ack_buf, MAX_FRAME_SIZE, 0, (struct sockaddr *)&pkt.from_addr, len);
                             // set flag nospace if receiver buffer is full
                             if (SM[i].rbuff.size == MAX_BUFFER_SIZE)
                             {
                                 SM[i].flag_nospace = 1;
                             }
-                            // // update the last acknowledged packet
-                            // SM[i].last_ack = seq_num;
+                            
                         }
                         else if (buf[0] == ACK_TYPE)
                         {
@@ -137,7 +136,7 @@ void *thread_R(void *arg)
                             for (int j = 0; j < MAX_WINDOW_SIZE; j++)
                             {
 
-                                if (SM[i].swnd.window[j] != NULL && SM[i].swnd.window[j]->sequence_number == seq_num)
+                                if (SM[i].swnd.window[j].sequence_number == seq_num)
                                 {
                                     // if (SM[i].swnd.window[j] == NULL) // duplicate message
                                     // {
@@ -147,14 +146,14 @@ void *thread_R(void *arg)
                                     // }
                                     // first ACK message for the packet
                                     // set to NULL
-                                    SM[i].swnd.window[j] = NULL;
+                                    SM[i].swnd.window[j].sequence_number = -1;
                                     SM[i].swnd.front = (SM[i].swnd.front + 1) % MAX_WINDOW_SIZE;
                                     // remove the message from the sender buffer
                                     for (int k = 0; k < SM[i].sbuff.size; k++)
                                     {
-                                        if (SM[i].sbuff.buffer[k]->sequence_number == seq_num)
+                                        if (SM[i].sbuff.buffer[k].sequence_number == seq_num)
                                         {
-                                            SM[i].sbuff.buffer[k] = NULL;
+                                            SM[i].sbuff.buffer[k].sequence_number = -1;
                                             SM[i].sbuff.front = (SM[i].sbuff.front + 1) % MAX_BUFFER_SIZE;
                                             SM[i].sbuff.size--;
                                             break;
@@ -176,12 +175,12 @@ void *thread_R(void *arg)
                         }
                     }
                 }
-                V(sem_SM);
+                // V(sem_SM);
             }
         }
         else // case of time out or no packet received
         {
-            P(sem_SM);
+            // P(sem_SM);
             for (int i = 0; i < MAX_SOCKETS; i++)
             {
                 // check if flag no space was set
@@ -208,6 +207,7 @@ void *thread_R(void *arg)
                     {
                         printf("Error sending ACK\n");
                     }
+                    printf("HEllo\n");
                     // update the reciever window
                     // doubt in this part
                     SM[i].rwnd.window[SM[i].rwnd.rear] = SM[i].rbuff.buffer[SM[i].rwnd.rear];
@@ -219,6 +219,7 @@ void *thread_R(void *arg)
             }
             V(sem_SM);
         }
+        V(sem_SM);
     }
 }
 // thread S
@@ -227,7 +228,7 @@ void *thread_S(void *arg)
     int key_SM = ftok(".", 'A');
     int shmid_A = shmget((key_t)key_SM, MAX_SOCKETS * sizeof(shared_memory),0666);
     shared_memory *SM = (shared_memory *)shmat(shmid_A, 0, 0);
-    printf(" key_SM = %d\n", key_SM);
+    // printf(" key_SM = %d\n", key_SM);
     int key_sem3 = ftok(".", 'E'); // semaphore for shared memory SM
     int sem_SM = semget((key_t)key_sem3, 1,0666);
      struct sembuf pop, vop;
@@ -242,33 +243,39 @@ void *thread_S(void *arg)
     {
         sleep(T / 2);
         // get current time
-        printf("SM[i].sockfd = %d\n", SM[0].sockfd);
+        // printf("SM[i].sockfd = %d\n", SM[0].sockfd);
         struct timeval current_time;
         gettimeofday(&current_time, NULL);
+        P(sem_SM);
         for (int i = 0; i < MAX_SOCKETS; i++)
         {
+            if(SM[i].sockfd == -1)
+            {
+                // V(sem_SM);
+                continue;
+            }
             // loop through the sender window
             for (int j = 0; j < MAX_WINDOW_SIZE; j++)
             {
                 // check if the time difference between the current time and the time of the packet is greater than T
                 struct timeval diff;
                 int is_timeout = 0;
-                P(sem_SM);
-                printf("Waiting \n");
+               
+                // printf("Waiting \n");
                 // if NULL continue
-                if (SM[i].swnd.window[j] == NULL)
+                if (SM[i].swnd.window[j].sequence_number == -1)
                 {
                     V(sem_SM);
                     continue;
                 }
-                else{
-                    printf("Not null \n");
-                }
-                printf("Checking for timeout\n");
+                // else{
+                //     printf("Not null \n");
+                // }
+                // printf("Checking for timeout\n");
                 printf(" i is %d\n", i);
                 printf(" j is %d\n", j);
-                printf("SM[i].swnd.window[j]->data = %s\n", SM[i].swnd.window[j]->time);
-                // timersub(&current_time, &SM[i].swnd.window[j]->time, &diff);
+                printf("SM[i].swnd.window[j]->sequence = %s\n", SM[i].swnd.window[j].data);
+                timersub(&current_time, &SM[i].swnd.window[j].time, &diff);
                 printf("diff.tv_sec = %ld\n", diff.tv_sec);
                 if (diff.tv_sec > T)
                 {
@@ -276,8 +283,8 @@ void *thread_S(void *arg)
                     // restransmit all the packets in the sender window
                     for (int k = 0; k < MAX_WINDOW_SIZE; k++)
                     {
-                        if (SM[i].swnd.window[k] != NULL)
-                        {
+                        // if (SM[i].swnd.window != NULL)
+                        // {
                             // send the packet
 
                             struct sockaddr_in to_addr;
@@ -285,12 +292,12 @@ void *thread_S(void *arg)
                             to_addr.sin_port = htons(SM[i].port);
                             to_addr.sin_addr.s_addr = inet_addr(SM[i].ip);
                             int len = sizeof(to_addr);
-                            int n = sendto(SM[i].sockfd, SM[i].swnd.window[k]->data, MAX_FRAME_SIZE, 0, (struct sockaddr *)&to_addr, len);
+                            int n = sendto(SM[i].sockfd, SM[i].swnd.window[k].data, MAX_FRAME_SIZE, 0, (struct sockaddr *)&to_addr, len);
                             if (n == -1)
                             {
                                 printf("Error sending packet\n");
                             }
-                        }
+                        // }
                     }
                     V(sem_SM);
                     break;
@@ -307,22 +314,22 @@ void *thread_S(void *arg)
                 {
                     // add the message to the sender window
                     printf("Checking for space\n");
-                    if(SM[i].sbuff.buffer[SM[i].sbuff.front] == NULL)
-                    {
-                        printf("NULL message\n");
-                        break;
-                    }
-                    else{
-                        printf("Message not NULL\n");
-                    }
-                    printf("Message: %s\n", SM[i].sbuff.buffer[SM[i].sbuff.front]->data);
-                    SM[i].swnd.window[SM[i].swnd.rear] = SM[i].sbuff.buffer[SM[i].sbuff.front];
-                    printf("Message added to sender window\n");
-                    // also update the time of the packet
-                    gettimeofday(&SM[i].swnd.window[SM[i].swnd.rear]->time, NULL);
-                    printf("Time updated\n");
-                    SM[i].swnd.rear = (SM[i].swnd.rear + 1) % MAX_WINDOW_SIZE;
-                    SM[i].swnd.size++;
+                    // if(SM[i].sbuff.buffer[SM[i].sbuff.front] == NULL)
+                    // {
+                    //     printf("NULL message\n");
+                    //     break;
+                    // }
+                    // else{
+                    //     printf("Message not NULL\n");
+                    // }
+                    // printf("Message: %s\n", SM[i].sbuff.buffer[SM[i].sbuff.front]->data);
+                    // SM[i].swnd.window[SM[i].swnd.rear] = SM[i].sbuff.buffer[SM[i].sbuff.front];
+                    // printf("Message added to sender window\n");
+                    // // also update the time of the packet
+                    // gettimeofday(&SM[i].swnd.window[SM[i].swnd.rear].time, NULL);
+                    // printf("Time updated\n");
+                    // SM[i].swnd.rear = (SM[i].swnd.rear + 1) % MAX_WINDOW_SIZE;
+                    // SM[i].swnd.size++;
 
                     // send the message
                     struct sockaddr_in to_addr;
@@ -330,13 +337,13 @@ void *thread_S(void *arg)
                     to_addr.sin_port = htons(SM[i].port);
                     to_addr.sin_addr.s_addr = inet_addr(SM[i].ip);
                     int len = sizeof(to_addr);
-                    int n = sendto(SM[i].sockfd, SM[i].sbuff.buffer[SM[i].sbuff.front]->data, MAX_FRAME_SIZE, 0, (struct sockaddr *)&to_addr, len);
+                    int n = sendto(SM[i].sockfd, SM[i].sbuff.buffer[SM[i].sbuff.front].data, MAX_FRAME_SIZE, 0, (struct sockaddr *)&to_addr, len);
                     if (n == -1)
                     {
                         printf("Error sending packet\n");
                     }
                     // remove the message from the sender buffer
-                    SM[i].sbuff.buffer[SM[i].sbuff.front] = NULL;
+                    // SM[i].sbuff.buffer[SM[i].sbuff.front] = NULL;
                     SM[i].sbuff.front = (SM[i].sbuff.front + 1) % MAX_BUFFER_SIZE;
                     SM[i].sbuff.size--;
                 }
@@ -348,6 +355,7 @@ void *thread_S(void *arg)
             V(sem_SM);
         }
         // sleep for T/2
+        V(sem_SM);
     }
 }
 // thread G
@@ -396,6 +404,7 @@ void init_process()
         SM[i].sockfd = -1;
         SM[i].port = -1;
         memset(SM[i].ip, 0, sizeof(SM[i].ip));
+        printf("SM[i].ip = %s\n", SM[i].ip);
         SM[i].is_free = 1;
         SM[i].pid = -1;
         SM[i].flag_nospace = 0;
@@ -415,16 +424,18 @@ void init_process()
         SM[i].rwnd.front = 0;
         SM[i].rwnd.rear = 0;
         SM[i].rwnd.size = 0; // indicates the number of packets in the receiver window
-
         for (int j = 0; j < MAX_WINDOW_SIZE; j++)
         {
-            SM[i].swnd.window[j] = NULL;
-            SM[i].rwnd.window[j] = NULL;
+            // SM[i].swnd.window[j] = NULL;
+            // allocate memory for the sender window
+   
+            // SM[i].swnd.window[j] = NULL;
+            SM[i].rwnd.window[j].sequence_number = -1;
         }
         for (int j = 0; j < MAX_BUFFER_SIZE; j++)
         {
-            SM[i].sbuff.buffer[j] = NULL;
-            SM[i].rbuff.buffer[j] = NULL;
+            SM[i].sbuff.buffer[j].sequence_number=-1;
+            SM[i].rbuff.buffer[j].sequence_number=-1;
         }
     }
     // recv_packet *rpkt = (recv_packet *)malloc(sizeof(recv_packet));
@@ -448,7 +459,7 @@ void init_process()
     // create thread S
     pthread_t threadS;
     pthread_create(&threadS, NULL, &thread_S, NULL);
-    // // create thread G
+    // // // create thread G
     pthread_t threadG;
     pthread_create(&threadG, NULL, &thread_G, NULL);
     // wait for threads to finish
@@ -493,7 +504,7 @@ void init_process()
             V(sem2);
         }
     }
-    pthread_join(threadR, NULL);
+    // pthread_join(threadR, NULL);
     pthread_join(threadS, NULL);
     pthread_join(threadG, NULL);
 }
