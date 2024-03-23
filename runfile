@@ -1,0 +1,3 @@
+gcc -Wall myinitmsocket.c -o init && ./init
+gcc -Wall user1.c -o usr1 && ./usr1
+gcc -Wall user2.c -o usr2 && ./usr2
