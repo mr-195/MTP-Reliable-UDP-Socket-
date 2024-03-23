@@ -14,6 +14,20 @@ int nospace = 0;
 #define V(s) semop(s, &vop, 1) /* vop is the structure we pass for doing \
                   the V(s) operation */
 
+// void signalHandler(int signum)
+// {
+//      if(signum == SIGINT)
+//      {
+//         // create a shared memory for the shared memory
+//         int key_SM = ftok(".", 'A');
+//         int shmid_A = shmget((key_t)key_SM, MAX_SOCKETS * sizeof(shared_memory),0666);
+//         // destroy the shared memory
+//         // detach
+//         shmctl(shmid_A, IPC_RMID, NULL);
+//         exit(0);
+//      }
+
+// }
 // thread R
 void *thread_R(void *arg)
 {
@@ -25,6 +39,11 @@ void *thread_R(void *arg)
     shared_memory *SM = (shared_memory *)shmat(shmid_A, 0, 0);
     int key_sem3 = ftok(".", 'E'); // semaphore for shared memory SM
     int sem_SM = semget((key_t)key_sem3, 1,0666);
+    int key_sem4 = ftok(".", 'F');
+    int sem_SM2 = semget((key_t)key_sem4, 1,0666);
+    // intilize the semaphores
+     semctl(sem_SM2, 0, SETVAL, 1);
+   
      struct sembuf pop, vop;
     pop.sem_num = 0;
     pop.sem_op = -1;
@@ -52,7 +71,7 @@ void *thread_R(void *arg)
                 }
             }
         }
-        // V(sem_SM);
+        V(sem_SM);
         timeout.tv_sec = 5;
         timeout.tv_usec = 0;
         int ret = select(max_fd + 1, &readfds, NULL, NULL, &timeout);
@@ -60,17 +79,17 @@ void *thread_R(void *arg)
         {
             for (int i = 0; i < MAX_SOCKETS; i++)
             {
-                // P(sem_SM);
+                P(sem_SM);
                 if (FD_ISSET(SM[i].sockfd, &readfds))
                 {
                     // receive the packet
                     recv_packet pkt ;
-                    // pkt->from_addr.sin_family = AF_INET;
-                    // pkt->from_addr.sin_port = htons(SM[i].port);
-                    // pkt->from_addr.sin_addr.s_addr = inet_addr(SM[i].ip);
+                    pkt.from_addr.sin_family = AF_INET;
+                    pkt.from_addr.sin_port = htons(SM[i].port);
+                    pkt.from_addr.sin_addr.s_addr = inet_addr(SM[i].ip);
                     int len = sizeof(pkt.from_addr);
                     char buf[MAX_FRAME_SIZE];
-                    printf("Receiving packet\n");
+                    // printf("Receiving packet\n");
                     int n = recvfrom(SM[i].sockfd, buf, sizeof(buf), 0, (struct sockaddr *)&pkt.from_addr, &len);
                     if (n == -1)
                     {
@@ -100,9 +119,14 @@ void *thread_R(void *arg)
                             pkt.sequence_number = seq_num;
 
                             // add the packet to the receive buffer
+                            P(sem_SM2);
+                            // if(SM[i].rbuff.buffer[SM[i].rbuff.rear].sequence_number != -1)
+                            // printf("SM[i].rbuff.rear = %d\n", SM[i].rbuff.rear);
                             SM[i].rbuff.buffer[SM[i].rbuff.rear] = pkt;
+                            printf("Packet received: %s\n", SM[i].rbuff.buffer[SM[i].rbuff.rear].data);
                             SM[i].rbuff.rear = (SM[i].rbuff.rear + 1) % MAX_BUFFER_SIZE;
                             SM[i].rbuff.size++;
+                            V(sem_SM2);
 
                             // send ACK for the received packet
                             char ack_buf[MAX_FRAME_SIZE];
@@ -130,7 +154,7 @@ void *thread_R(void *arg)
                                 }
                                 seq_num = seq_num * 10 + (buf[j] - '0');
                             }
-                            printf("ACK received for sequence number %d\n", seq_num);
+                            // printf("ACK received for sequence number %d\n", seq_num);
                             // remove the packet from the sender window
                             int ack_msg_found = 0;
                             for (int j = 0; j < MAX_WINDOW_SIZE; j++)
@@ -138,12 +162,7 @@ void *thread_R(void *arg)
 
                                 if (SM[i].swnd.window[j].sequence_number == seq_num)
                                 {
-                                    // if (SM[i].swnd.window[j] == NULL) // duplicate message
-                                    // {
-                                    //     // update the size of the sender window size
-                                    //     SM[i].swnd.size--;
-                                    //     break;
-                                    // }
+                                    
                                     // first ACK message for the packet
                                     // set to NULL
                                     SM[i].swnd.window[j].sequence_number = -1;
@@ -170,17 +189,17 @@ void *thread_R(void *arg)
                             if (ack_msg_found == 0)
                             {
                                 // duplicate ACK message was recieved
-                                printf("Duplicate ACK message was received\n");
+                                // printf("Duplicate ACK message was received\n");
                             }
                         }
                     }
                 }
-                // V(sem_SM);
+                V(sem_SM);
             }
         }
         else // case of time out or no packet received
         {
-            // P(sem_SM);
+            P(sem_SM);
             for (int i = 0; i < MAX_SOCKETS; i++)
             {
                 // check if flag no space was set
@@ -207,7 +226,7 @@ void *thread_R(void *arg)
                     {
                         printf("Error sending ACK\n");
                     }
-                    printf("HEllo\n");
+                    // printf("HEllo\n");
                     // update the reciever window
                     // doubt in this part
                     SM[i].rwnd.window[SM[i].rwnd.rear] = SM[i].rbuff.buffer[SM[i].rwnd.rear];
@@ -272,9 +291,9 @@ void *thread_S(void *arg)
                 //     printf("Not null \n");
                 // }
                 // printf("Checking for timeout\n");
-                printf(" i is %d\n", i);
-                printf(" j is %d\n", j);
-                printf("SM[i].swnd.window[j]->sequence = %s\n", SM[i].swnd.window[j].data);
+                // printf(" i is %d\n", i);
+                // printf(" j is %d\n", j);
+                // printf("SM[i].swnd.window[j]->sequence = %s\n", SM[i].swnd.window[j].data);
                 timersub(&current_time, &SM[i].swnd.window[j].time, &diff);
                 // printf("diff.tv_sec = %ld\n", diff.tv_sec);
                 if (diff.tv_sec > T)
@@ -311,21 +330,14 @@ void *thread_S(void *arg)
                 if (SM[i].swnd.size < MAX_WINDOW_SIZE)
                 {
                     // add the message to the sender window
-                    // printf("Checking for space\n");
-                    // if(SM[i].sbuff.buffer[SM[i].sbuff.front] == NULL)
-                    // {
-                    //     printf("NULL message\n");
-                    //     break;
-                    // }
-                    // else{
-                    //     printf("Message not NULL\n");
+                    // printf("Message not NULL\n");
                     // }
                     printf("Message: %s\n", SM[i].sbuff.buffer[SM[i].sbuff.front].data);
                     SM[i].swnd.window[SM[i].swnd.rear] = SM[i].sbuff.buffer[SM[i].sbuff.front];
-                    printf("Message added to sender window\n");
+                    // printf("Message added to sender window\n");
                     // also update the time of the packet
                     gettimeofday(&SM[i].swnd.window[SM[i].swnd.rear].time, NULL);
-                    printf("Time updated\n");
+                    // printf("Time updated\n");
                     SM[i].swnd.rear = (SM[i].swnd.rear + 1) % MAX_WINDOW_SIZE;
                     SM[i].swnd.size++;
 
@@ -335,6 +347,7 @@ void *thread_S(void *arg)
                     to_addr.sin_port = htons(SM[i].port);
                     to_addr.sin_addr.s_addr = inet_addr(SM[i].ip);
                     int len = sizeof(to_addr);
+                    printf("SM[i].sbuff.buffer[SM[i].sbuff.front].data = %s\n", SM[i].sbuff.buffer[SM[i].sbuff.front].data);
                     int n = sendto(SM[i].sockfd, SM[i].sbuff.buffer[SM[i].sbuff.front].data, MAX_FRAME_SIZE, 0, (struct sockaddr *)&to_addr, len);
                     if (n == -1)
                     {
@@ -423,10 +436,7 @@ void init_process()
         SM[i].rwnd.size = 0; // indicates the number of packets in the receiver window
         for (int j = 0; j < MAX_WINDOW_SIZE; j++)
         {
-            // SM[i].swnd.window[j] = NULL;
-            // allocate memory for the sender window
-   
-            // SM[i].swnd.window[j] = NULL;
+         
             SM[i].rwnd.window[j].sequence_number = -1;
         }
         for (int j = 0; j < MAX_BUFFER_SIZE; j++)
@@ -450,8 +460,8 @@ void init_process()
     V(sem_SM);
 
     // create thread R
-    // pthread_t threadR;
-    // pthread_create(&threadR, NULL, &thread_R, NULL);
+    pthread_t threadR;
+    pthread_create(&threadR, NULL, &thread_R, NULL);
     // pthread_join(threadR, NULL);
     // create thread S
     pthread_t threadS;
@@ -465,21 +475,27 @@ void init_process()
     while (1)
     {
         // wait for sem1
+        printf("Waiting for sem1\n");
         P(sem1);
+        printf("sem1 received\n");
         // look at SOCK_INFO and find the socket id
         // check if all fields are 0 it is a m_socket call
+        printf("sockinfo->sockfd = %d\n", sockinfo->sockfd);
         if (sockinfo->sockfd == 0 && sockinfo->port == 0 && sockinfo->error_no == 0 && strcmp(sockinfo->ip, "") == 0)
         {
             // create a new socket
             int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+            printf("Creating socket\n");
             if (sockfd == -1)
             {
                 printf("Error creating socket\n");
                 sockinfo->sockfd = -1;
                 sockinfo->error_no = errno;
+                exit(EXIT_FAILURE);
                 //
             }
             sockinfo->sockfd = sockfd;
+            printf("sockinfo->sockfd = %d\n", sockinfo->sockfd);
             // signal sem2
             V(sem2);
         }
@@ -508,6 +524,7 @@ void init_process()
 
 int main()
 {
+    // signal(SIGINT, signalHandler);
     init_process();
     return 0;
 }

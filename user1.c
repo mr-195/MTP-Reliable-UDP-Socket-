@@ -20,13 +20,13 @@
 #include "mysock.h"
 // #include "mysock.c"
 
-#define PORT_1 8000
-#define PORT_2 8001
+#define PORT_1 8003
+#define PORT_2 8004
 
 int main()
 {
     int sockfd;
-    // printf("Creating socket\n");
+    printf("Creating socket\n");
     if ((sockfd = m_socket(AF_INET, SOCK_MTP, 0)) < 0)
     {
         perror("msocket");
