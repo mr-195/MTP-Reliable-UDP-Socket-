@@ -15,213 +15,213 @@ int nospace = 0;
                   the V(s) operation */
 
 // thread R
-void *thread_R(void *arg)
-{
-    // shared_memory *SM = (shared_memory *)arg;
-    //
-    int key_SM = ftok(".", 'A');
-    int shmid_A = shmget((key_t)key_SM, MAX_SOCKETS * sizeof(shared_memory),0666);
-    int key_sockinfo = ftok(".", 'B');
-    shared_memory *SM = (shared_memory *)shmat(shmid_A, 0, 0);
-    int key_sem3 = ftok(".", 'E'); // semaphore for shared memory SM
-    int sem_SM = semget((key_t)key_sem3, 1,0666);
-     struct sembuf pop, vop;
-    pop.sem_num = 0;
-    pop.sem_op = -1;
-    pop.sem_flg = 0;
-    vop.sem_num = 0;
-    vop.sem_op = 1;
-    vop.sem_flg = 0;
-    printf("Thread R\n");
-    fd_set readfds;
-    struct timeval timeout;
-    while (1)
-    {
-        FD_ZERO(&readfds);
-        int max_fd = 0;
-        P(sem_SM);
-        for (int i = 0; i < MAX_SOCKETS; i++)
-        {
-            if (SM[i].is_free == 0)
-            {
-                // printf(" SM[i].sockfd = %d\n", SM[i].sockfd);
-                FD_SET(SM[i].sockfd, &readfds);
-                if (SM[i].sockfd > max_fd)
-                {
-                    max_fd = SM[i].sockfd;
-                }
-            }
-        }
-        // V(sem_SM);
-        timeout.tv_sec = 5;
-        timeout.tv_usec = 0;
-        int ret = select(max_fd + 1, &readfds, NULL, NULL, &timeout);
-        if (ret > 0)
-        {
-            for (int i = 0; i < MAX_SOCKETS; i++)
-            {
-                // P(sem_SM);
-                if (FD_ISSET(SM[i].sockfd, &readfds))
-                {
-                    // receive the packet
-                    recv_packet pkt ;
-                    // pkt->from_addr.sin_family = AF_INET;
-                    // pkt->from_addr.sin_port = htons(SM[i].port);
-                    // pkt->from_addr.sin_addr.s_addr = inet_addr(SM[i].ip);
-                    int len = sizeof(pkt.from_addr);
-                    char buf[MAX_FRAME_SIZE];
-                    printf("Receiving packet\n");
-                    int n = recvfrom(SM[i].sockfd, buf, sizeof(buf), 0, (struct sockaddr *)&pkt.from_addr, &len);
-                    if (n == -1)
-                    {
-                        printf("Error receiving packet\n");
-                    }
-                    else
-                    {
-                        // check if it is an DATA packet store in the reciver side message buffer
-                        if (buf[0] == DATA_TYPE)
-                        {
-                            pkt.type = DATA_TYPE;
-                            // extract the sequence number
-                            int seq_num = 0;
-                            for (int j = 1; j < MAX_FRAME_SIZE; j++)
-                            {
-                                if ((seq_num * 10 + (buf[j] - '0')) > 16)
-                                {
-                                    break;
-                                }
-                                seq_num = seq_num * 10 + (buf[j] - '0');
-                            }
-                            // store the entire content
-                            for (int j = 0; j < MAX_FRAME_SIZE; j++)
-                            {
-                                pkt.data[j] = buf[j];
-                            }
-                            pkt.sequence_number = seq_num;
+// void *thread_R(void *arg)
+// {
+//     // shared_memory *SM = (shared_memory *)arg;
+//     //
+//     int key_SM = ftok(".", 'A');
+//     int shmid_A = shmget((key_t)key_SM, MAX_SOCKETS * sizeof(shared_memory),0666);
+//     int key_sockinfo = ftok(".", 'B');
+//     shared_memory *SM = (shared_memory *)shmat(shmid_A, 0, 0);
+//     int key_sem3 = ftok(".", 'E'); // semaphore for shared memory SM
+//     int sem_SM = semget((key_t)key_sem3, 1,0666);
+//      struct sembuf pop, vop;
+//     pop.sem_num = 0;
+//     pop.sem_op = -1;
+//     pop.sem_flg = 0;
+//     vop.sem_num = 0;
+//     vop.sem_op = 1;
+//     vop.sem_flg = 0;
+//     printf("Thread R\n");
+//     fd_set readfds;
+//     struct timeval timeout;
+//     while (1)
+//     {
+//         FD_ZERO(&readfds);
+//         int max_fd = 0;
+//         P(sem_SM);
+//         for (int i = 0; i < MAX_SOCKETS; i++)
+//         {
+//             if (SM[i].is_free == 0)
+//             {
+//                 // printf(" SM[i].sockfd = %d\n", SM[i].sockfd);
+//                 FD_SET(SM[i].sockfd, &readfds);
+//                 if (SM[i].sockfd > max_fd)
+//                 {
+//                     max_fd = SM[i].sockfd;
+//                 }
+//             }
+//         }
+//         // V(sem_SM);
+//         timeout.tv_sec = 5;
+//         timeout.tv_usec = 0;
+//         int ret = select(max_fd + 1, &readfds, NULL, NULL, &timeout);
+//         if (ret > 0)
+//         {
+//             for (int i = 0; i < MAX_SOCKETS; i++)
+//             {
+//                 // P(sem_SM);
+//                 if (FD_ISSET(SM[i].sockfd, &readfds))
+//                 {
+//                     // receive the packet
+//                     recv_packet pkt ;
+//                     // pkt->from_addr.sin_family = AF_INET;
+//                     // pkt->from_addr.sin_port = htons(SM[i].port);
+//                     // pkt->from_addr.sin_addr.s_addr = inet_addr(SM[i].ip);
+//                     int len = sizeof(pkt.from_addr);
+//                     char buf[MAX_FRAME_SIZE];
+//                     printf("Receiving packet\n");
+//                     int n = recvfrom(SM[i].sockfd, buf, sizeof(buf), 0, (struct sockaddr *)&pkt.from_addr, &len);
+//                     if (n == -1)
+//                     {
+//                         printf("Error receiving packet\n");
+//                     }
+//                     else
+//                     {
+//                         // check if it is an DATA packet store in the reciver side message buffer
+//                         if (buf[0] == DATA_TYPE)
+//                         {
+//                             pkt.type = DATA_TYPE;
+//                             // extract the sequence number
+//                             int seq_num = 0;
+//                             for (int j = 1; j < MAX_FRAME_SIZE; j++)
+//                             {
+//                                 if ((seq_num * 10 + (buf[j] - '0')) > 16)
+//                                 {
+//                                     break;
+//                                 }
+//                                 seq_num = seq_num * 10 + (buf[j] - '0');
+//                             }
+//                             // store the entire content
+//                             for (int j = 0; j < MAX_FRAME_SIZE; j++)
+//                             {
+//                                 pkt.data[j] = buf[j];
+//                             }
+//                             pkt.sequence_number = seq_num;
 
-                            // add the packet to the receive buffer
-                            SM[i].rbuff.buffer[SM[i].rbuff.rear] = pkt;
-                            SM[i].rbuff.rear = (SM[i].rbuff.rear + 1) % MAX_BUFFER_SIZE;
-                            SM[i].rbuff.size++;
+//                             // add the packet to the receive buffer
+//                             SM[i].rbuff.buffer[SM[i].rbuff.rear] = pkt;
+//                             SM[i].rbuff.rear = (SM[i].rbuff.rear + 1) % MAX_BUFFER_SIZE;
+//                             SM[i].rbuff.size++;
 
-                            // send ACK for the received packet
-                            char ack_buf[MAX_FRAME_SIZE];
-                            ack_buf[0] = ACK_TYPE;
-                            char seq_num_str[50];
-                            sprintf(seq_num_str, "%d", seq_num);
-                            strcat(ack_buf, seq_num_str);
-                            int n = sendto(SM[i].sockfd, ack_buf, MAX_FRAME_SIZE, 0, (struct sockaddr *)&pkt.from_addr, len);
-                            // set flag nospace if receiver buffer is full
-                            if (SM[i].rbuff.size == MAX_BUFFER_SIZE)
-                            {
-                                SM[i].flag_nospace = 1;
-                            }
+//                             // send ACK for the received packet
+//                             char ack_buf[MAX_FRAME_SIZE];
+//                             ack_buf[0] = ACK_TYPE;
+//                             char seq_num_str[50];
+//                             sprintf(seq_num_str, "%d", seq_num);
+//                             strcat(ack_buf, seq_num_str);
+//                             int n = sendto(SM[i].sockfd, ack_buf, MAX_FRAME_SIZE, 0, (struct sockaddr *)&pkt.from_addr, len);
+//                             // set flag nospace if receiver buffer is full
+//                             if (SM[i].rbuff.size == MAX_BUFFER_SIZE)
+//                             {
+//                                 SM[i].flag_nospace = 1;
+//                             }
                             
-                        }
-                        else if (buf[0] == ACK_TYPE)
-                        {
-                            // extract the sequence number
-                            int seq_num = 0;
-                            for (int j = 1; j < MAX_FRAME_SIZE; j++)
-                            {
-                                if ((seq_num * 10 + (buf[j] - '0')) > 16)
-                                {
-                                    break;
-                                }
-                                seq_num = seq_num * 10 + (buf[j] - '0');
-                            }
-                            printf("ACK received for sequence number %d\n", seq_num);
-                            // remove the packet from the sender window
-                            int ack_msg_found = 0;
-                            for (int j = 0; j < MAX_WINDOW_SIZE; j++)
-                            {
+//                         }
+//                         else if (buf[0] == ACK_TYPE)
+//                         {
+//                             // extract the sequence number
+//                             int seq_num = 0;
+//                             for (int j = 1; j < MAX_FRAME_SIZE; j++)
+//                             {
+//                                 if ((seq_num * 10 + (buf[j] - '0')) > 16)
+//                                 {
+//                                     break;
+//                                 }
+//                                 seq_num = seq_num * 10 + (buf[j] - '0');
+//                             }
+//                             printf("ACK received for sequence number %d\n", seq_num);
+//                             // remove the packet from the sender window
+//                             int ack_msg_found = 0;
+//                             for (int j = 0; j < MAX_WINDOW_SIZE; j++)
+//                             {
 
-                                if (SM[i].swnd.window[j].sequence_number == seq_num)
-                                {
-                                    // if (SM[i].swnd.window[j] == NULL) // duplicate message
-                                    // {
-                                    //     // update the size of the sender window size
-                                    //     SM[i].swnd.size--;
-                                    //     break;
-                                    // }
-                                    // first ACK message for the packet
-                                    // set to NULL
-                                    SM[i].swnd.window[j].sequence_number = -1;
-                                    SM[i].swnd.front = (SM[i].swnd.front + 1) % MAX_WINDOW_SIZE;
-                                    // remove the message from the sender buffer
-                                    for (int k = 0; k < SM[i].sbuff.size; k++)
-                                    {
-                                        if (SM[i].sbuff.buffer[k].sequence_number == seq_num)
-                                        {
-                                            SM[i].sbuff.buffer[k].sequence_number = -1;
-                                            SM[i].sbuff.front = (SM[i].sbuff.front + 1) % MAX_BUFFER_SIZE;
-                                            SM[i].sbuff.size--;
-                                            break;
-                                        }
-                                    }
-                                    // update the size of the sender window size
-                                    SM[i].swnd.size--;
-                                    // update the last acknowledged packet
-                                    SM[i].last_ack = seq_num;
-                                    ack_msg_found = 1;
-                                    break;
-                                }
-                            }
-                            if (ack_msg_found == 0)
-                            {
-                                // duplicate ACK message was recieved
-                                printf("Duplicate ACK message was received\n");
-                            }
-                        }
-                    }
-                }
-                // V(sem_SM);
-            }
-        }
-        else // case of time out or no packet received
-        {
-            // P(sem_SM);
-            for (int i = 0; i < MAX_SOCKETS; i++)
-            {
-                // check if flag no space was set
-                printf("Checking for no space\n");
-                printf("SM[i].flag_nospace = %d\n", SM[i].flag_nospace);
-                if (SM[i].flag_nospace == 1)
-                {
-                    // get the last acknowledged packet
-                    // send
-                    int last_ack = SM[i].last_ack;
-                    // send ACK for the last acknowledged packet
-                    char ack_buf[MAX_FRAME_SIZE];
-                    ack_buf[0] = ACK_TYPE;
-                    char seq_num_str[50];
-                    sprintf(seq_num_str, "%d", last_ack);
-                    strcat(ack_buf, seq_num_str);
-                    struct sockaddr_in from_addr;
-                    from_addr.sin_family = AF_INET;
-                    from_addr.sin_port = htons(SM[i].port);
-                    from_addr.sin_addr.s_addr = inet_addr(SM[i].ip);
-                    int len = sizeof(from_addr);
-                    int n = sendto(SM[i].sockfd, ack_buf, MAX_FRAME_SIZE, 0, (struct sockaddr *)&from_addr, len);
-                    if (n == -1)
-                    {
-                        printf("Error sending ACK\n");
-                    }
-                    printf("HEllo\n");
-                    // update the reciever window
-                    // doubt in this part
-                    SM[i].rwnd.window[SM[i].rwnd.rear] = SM[i].rbuff.buffer[SM[i].rwnd.rear];
-                    SM[i].rwnd.rear = (SM[i].rwnd.rear + 1) % MAX_WINDOW_SIZE;
-                    SM[i].rwnd.size++;
-                    // reset the flag
-                    SM[i].flag_nospace = 0;
-                }
-            }
-            V(sem_SM);
-        }
-        V(sem_SM);
-    }
-}
+//                                 if (SM[i].swnd.window[j].sequence_number == seq_num)
+//                                 {
+//                                     // if (SM[i].swnd.window[j] == NULL) // duplicate message
+//                                     // {
+//                                     //     // update the size of the sender window size
+//                                     //     SM[i].swnd.size--;
+//                                     //     break;
+//                                     // }
+//                                     // first ACK message for the packet
+//                                     // set to NULL
+//                                     SM[i].swnd.window[j].sequence_number = -1;
+//                                     SM[i].swnd.front = (SM[i].swnd.front + 1) % MAX_WINDOW_SIZE;
+//                                     // remove the message from the sender buffer
+//                                     for (int k = 0; k < SM[i].sbuff.size; k++)
+//                                     {
+//                                         if (SM[i].sbuff.buffer[k].sequence_number == seq_num)
+//                                         {
+//                                             SM[i].sbuff.buffer[k].sequence_number = -1;
+//                                             SM[i].sbuff.front = (SM[i].sbuff.front + 1) % MAX_BUFFER_SIZE;
+//                                             SM[i].sbuff.size--;
+//                                             break;
+//                                         }
+//                                     }
+//                                     // update the size of the sender window size
+//                                     SM[i].swnd.size--;
+//                                     // update the last acknowledged packet
+//                                     SM[i].last_ack = seq_num;
+//                                     ack_msg_found = 1;
+//                                     break;
+//                                 }
+//                             }
+//                             if (ack_msg_found == 0)
+//                             {
+//                                 // duplicate ACK message was recieved
+//                                 printf("Duplicate ACK message was received\n");
+//                             }
+//                         }
+//                     }
+//                 }
+//                 // V(sem_SM);
+//             }
+//         }
+//         else // case of time out or no packet received
+//         {
+//             // P(sem_SM);
+//             for (int i = 0; i < MAX_SOCKETS; i++)
+//             {
+//                 // check if flag no space was set
+//                 // printf("Checking for no space\n");
+//                 // printf("SM[i].flag_nospace = %d\n", SM[i].flag_nospace);
+//                 if (SM[i].flag_nospace == 1)
+//                 {
+//                     // get the last acknowledged packet
+//                     // send
+//                     int last_ack = SM[i].last_ack;
+//                     // send ACK for the last acknowledged packet
+//                     char ack_buf[MAX_FRAME_SIZE];
+//                     ack_buf[0] = ACK_TYPE;
+//                     char seq_num_str[50];
+//                     sprintf(seq_num_str, "%d", last_ack);
+//                     strcat(ack_buf, seq_num_str);
+//                     struct sockaddr_in from_addr;
+//                     from_addr.sin_family = AF_INET;
+//                     from_addr.sin_port = htons(SM[i].port);
+//                     from_addr.sin_addr.s_addr = inet_addr(SM[i].ip);
+//                     int len = sizeof(from_addr);
+//                     int n = sendto(SM[i].sockfd, ack_buf, MAX_FRAME_SIZE, 0, (struct sockaddr *)&from_addr, len);
+//                     if (n == -1)
+//                     {
+//                         printf("Error sending ACK\n");
+//                     }
+//                     printf("HEllo\n");
+//                     // update the reciever window
+//                     // doubt in this part
+//                     SM[i].rwnd.window[SM[i].rwnd.rear] = SM[i].rbuff.buffer[SM[i].rwnd.rear];
+//                     SM[i].rwnd.rear = (SM[i].rwnd.rear + 1) % MAX_WINDOW_SIZE;
+//                     SM[i].rwnd.size++;
+//                     // reset the flag
+//                     SM[i].flag_nospace = 0;
+//                 }
+//             }
+//             V(sem_SM);
+//         }
+//         V(sem_SM);
+//     }
+// }
 // thread S
 void *thread_S(void *arg)
 {
@@ -265,7 +265,7 @@ void *thread_S(void *arg)
                 // if NULL continue
                 if (SM[i].swnd.window[j].sequence_number == -1)
                 {
-                    V(sem_SM);
+                    // V(sem_SM);
                     continue;
                 }
                 // else{
@@ -283,9 +283,7 @@ void *thread_S(void *arg)
                     // restransmit all the packets in the sender window
                     for (int k = 0; k < MAX_WINDOW_SIZE; k++)
                     {
-                        // if (SM[i].swnd.window != NULL)
-                        // {
-                            // send the packet
+                        
 
                             struct sockaddr_in to_addr;
                             to_addr.sin_family = AF_INET;
@@ -299,21 +297,21 @@ void *thread_S(void *arg)
                             }
                         // }
                     }
-                    V(sem_SM);
+                    // V(sem_SM);
                     break;
                 }
-                V(sem_SM);
+                // V(sem_SM);
             }
-            P(sem_SM);
+            // P(sem_SM);
             // if there is message in the sender buffer to be added to sender window
             while (SM[i].sbuff.size > 0)
             {
-                printf("Adding message to sender window\n");
+                // printf("Adding message to sender window\n");
                 // check if there is space in the sender window
                 if (SM[i].swnd.size < MAX_WINDOW_SIZE)
                 {
                     // add the message to the sender window
-                    printf("Checking for space\n");
+                    // printf("Checking for space\n");
                     // if(SM[i].sbuff.buffer[SM[i].sbuff.front] == NULL)
                     // {
                     //     printf("NULL message\n");
@@ -322,14 +320,14 @@ void *thread_S(void *arg)
                     // else{
                     //     printf("Message not NULL\n");
                     // }
-                    // printf("Message: %s\n", SM[i].sbuff.buffer[SM[i].sbuff.front]->data);
-                    // SM[i].swnd.window[SM[i].swnd.rear] = SM[i].sbuff.buffer[SM[i].sbuff.front];
-                    // printf("Message added to sender window\n");
-                    // // also update the time of the packet
-                    // gettimeofday(&SM[i].swnd.window[SM[i].swnd.rear].time, NULL);
-                    // printf("Time updated\n");
-                    // SM[i].swnd.rear = (SM[i].swnd.rear + 1) % MAX_WINDOW_SIZE;
-                    // SM[i].swnd.size++;
+                    printf("Message: %s\n", SM[i].sbuff.buffer[SM[i].sbuff.front].data);
+                    SM[i].swnd.window[SM[i].swnd.rear] = SM[i].sbuff.buffer[SM[i].sbuff.front];
+                    printf("Message added to sender window\n");
+                    // also update the time of the packet
+                    gettimeofday(&SM[i].swnd.window[SM[i].swnd.rear].time, NULL);
+                    printf("Time updated\n");
+                    SM[i].swnd.rear = (SM[i].swnd.rear + 1) % MAX_WINDOW_SIZE;
+                    SM[i].swnd.size++;
 
                     // send the message
                     struct sockaddr_in to_addr;
@@ -352,7 +350,7 @@ void *thread_S(void *arg)
                     // SM[i].flag_nospace = 1;
                 }
             }
-            V(sem_SM);
+            // V(sem_SM);
         }
         // sleep for T/2
         V(sem_SM);
@@ -404,7 +402,6 @@ void init_process()
         SM[i].sockfd = -1;
         SM[i].port = -1;
         memset(SM[i].ip, 0, sizeof(SM[i].ip));
-        printf("SM[i].ip = %s\n", SM[i].ip);
         SM[i].is_free = 1;
         SM[i].pid = -1;
         SM[i].flag_nospace = 0;
@@ -453,8 +450,8 @@ void init_process()
     V(sem_SM);
 
     // create thread R
-    pthread_t threadR;
-    pthread_create(&threadR, NULL, &thread_R, NULL);
+    // pthread_t threadR;
+    // pthread_create(&threadR, NULL, &thread_R, NULL);
     // pthread_join(threadR, NULL);
     // create thread S
     pthread_t threadS;
