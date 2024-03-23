@@ -233,7 +233,7 @@ int m_socket(int domain, int type, int protocol)
         exit(EXIT_FAILURE);
     }
     // update SM[i]
-
+    // printf("SOcke")
     int i;
     // P(sem_SM);
     printf("Creating socket test 2\n");
@@ -246,6 +246,7 @@ int m_socket(int domain, int type, int protocol)
     {
         errno = ENOBUFS;
         V(sem_SM);
+        printf("returning due to no buff space\n");
         return -1;
     }
     else
@@ -273,6 +274,7 @@ int m_socket(int domain, int type, int protocol)
     // V(sem_SM);
     shmdt(SM);
     shmdt(sockinfo);
+    printf("Returning from msocket!\n");
     return i;
 }
 

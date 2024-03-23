@@ -23,6 +23,8 @@ int main()
         perror("m_socket");
         exit(1);
     }
+
+    printf("Created Socket Successfully!\n");
     struct sockaddr_in u1_addr, u2_addr;
     socklen_t u1_addr_len;
     memset(&u2_addr, 0, sizeof(u2_addr));
