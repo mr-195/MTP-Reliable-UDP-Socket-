@@ -19,7 +19,7 @@
 #include <sys/time.h>
 #include <sys/select.h>
 
-#define MAX_SEQUENCE_NUMBER 5
+#define MAX_SEQUENCE_NUMBER 16
 #define MAX_WINDOW_SIZE 5
 #define MAX_BUFFER_SIZE 10
 #define MSG_ID_SIZE 2
@@ -225,17 +225,10 @@ int m_socket(int domain, int type, int protocol)
         exit(EXIT_FAILURE);
     }
     printf("Creating socket test\n");
-    int sockfd = socket(domain, SOCK_DGRAM, protocol);
-
-    if (sockfd == -1)
-    {
-        perror("Socket creation failed");
-        exit(EXIT_FAILURE);
-    }
-    // update SM[i]
+ 
 
     int i;
-    // P(sem_SM);
+    P(sem_SM);
     printf("Creating socket test 2\n");
     for (i = 0; i < MAX_SOCKETS; i++)
     {
@@ -245,34 +238,49 @@ int m_socket(int domain, int type, int protocol)
     if (i == MAX_SOCKETS)
     {
         errno = ENOBUFS;
+        printf("No space available\n");
         V(sem_SM);
         return -1;
     }
     else
     {
+        printf(" i is %d\n", i);
         SM[i].is_free = 0;
-        SM[i].sockfd = sockfd;
+        printf("sockinfo->sockfd is %d\n", sockinfo->sockfd);
         V(sem1);
+        printf(" Signal sent to sem1\n");
         P(sem2);
+        printf(" Signal received from sem2\n");
         if (sockinfo->sockfd != -1)
         {
-            memset(&sockinfo, 0, sizeof(sockinfo));
-            SM[i].sockfd = sockfd;
-            // printf("sockfd is %d\n", sockfd);
+            // memset(sockinfo, 0, sizeof(sockinfo));
+            SM[i].sockfd = sockinfo->sockfd;
+            printf("sockfd is %d\n", sockinfo->sockfd);
+            // reset the sockinfo
+            sockinfo->sockfd = 0;
+            sockinfo->port = 0;
+            sockinfo->ip[0] = '\0';
+            sockinfo->error_no = 0;
             V(sem_SM);
             return i;
         }
         else
         {
-            memset(&sockinfo, 0, sizeof(sockinfo));
+            // memset(sockinfo, 0, sizeof(sockinfo));
+            printf("sockinfo->sockfd should be  %d\n", sockinfo->sockfd);
             errno = ENOBUFS;
+            // reset the sockinfo
+            sockinfo->sockfd = 0;
+            sockinfo->port = 0;
+            sockinfo->ip[0] = '\0';
+            sockinfo->error_no = 0;
             V(sem_SM);
             exit(EXIT_FAILURE);
         }
     }
-    // V(sem_SM);
-    shmdt(SM);
-    shmdt(sockinfo);
+    V(sem_SM);
+    // shmdt(SM);
+    // shmdt(sockinfo);
     return i;
 }
 
@@ -306,7 +314,7 @@ int m_bind(int sockfd, const char *source_ip, int source_port, const char *dest_
     for (i = 0; i < MAX_SOCKETS; i++)
     {
         // printf("i::::%d\n", i);
-        print(&SM[i]);
+        // print(&SM[i]);
         if (i == sockfd)
             break;
     }
@@ -331,13 +339,26 @@ int m_bind(int sockfd, const char *source_ip, int source_port, const char *dest_
     if (sockinfo->sockfd != -1)
     {
         // printf("sockinfo->sockfd is %d\n", sockinfo->sockfd);
-        memset(&sockinfo, 0, sizeof(sockinfo));
+        // memset(sockinfo, 0, sizeof(sockinfo));
+        // reset the sockinfo
+        sockinfo->sockfd = 0;
+        sockinfo->port = 0;
+        sockinfo->ip[0] = '\0';
+        sockinfo->error_no = 0;
+        printf("Returning from bind\n");
         V(sem_SM);
         return 0;
     }
     else
     {
-        memset(&sockinfo, 0, sizeof(sockinfo));
+        // memset(sockinfo, 0, sizeof(sockinfo));
+        // reset the sockinfo
+        printf("sockinfo->sockfd is %d\n", sockinfo->sockfd);
+        sockinfo->sockfd = 0;
+        sockinfo->port = 0;
+        sockinfo->ip[0] = '\0';
+        sockinfo->error_no = 0;
+        printf("Returning from bind 2\n");
         errno = ENOBUFS;
         V(sem_SM);
         exit(EXIT_FAILURE);
@@ -429,6 +450,10 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags, const struct so
         printf("SM[i].sbuff.buffer[SM[i].sbuff.rear]->data is %s\n", SM[i].sbuff.buffer[SM[i].sbuff.rear].data);
         SM[i].sbuff.rear = (SM[i].sbuff.rear + 1) % MAX_BUFFER_SIZE;
         SM[i].sbuff.size++;
+        for(int j=0;j<MAX_BUFFER_SIZE;j++)
+        {
+            printf("SM[i].sbuff.buffer[j]->data is %s\n", SM[i].sbuff.buffer[j].data);
+        }
         // update the send window 
         // allocate memory for the window
 
@@ -466,6 +491,8 @@ int m_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *sr
     int key_sem3 = ftok(".", 'E'); // semaphore for shared memory SM
     printf("key_sem3 is %d\n", key_sem3);
     int sem_SM = semget((key_t)key_sem3, 1,0666);
+    int key_sem4 = ftok(".", 'F');
+    int sem_SM2 = semget((key_t)key_sem4, 1,0666);
 
 
     struct sembuf pop;
@@ -493,30 +520,19 @@ int m_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *sr
         errno = ENOMSG;
         // exit(EXIT_FAILURE);
     }
-    recv_packet rpkt ;
-    rpkt.sequence_number = 0;
-    rpkt.type = DATA_TYPE;
-    rpkt.from_addr.sin_family = AF_INET;
-    rpkt.from_addr.sin_port = htons(8080);
-    rpkt.from_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-    strcpy(rpkt.data, "Hello\0");
-    SM[0].rbuff.buffer[0] = rpkt;
-    printf("SM[0].rbuff.buffer[0]->data = %s\n", SM[0].rbuff.buffer[0].data);
-    printf("i is => %d \n", i);
-    print(&SM[i]);
+    P(sem_SM2);
     printf("SM[i].rbuff.front is %d\n", SM[i].rbuff.front);
     recv_packet rpkt1 = SM[i].rbuff.buffer[SM[i].rbuff.front]; // first message in the buffer
-    // if (SM[i].rbuff.buffer[SM[i].rbuff.front] != NULL)
-        printf("SM[i].rbuff.buffer[SM[i].rbuff.front] => %d \n", SM[i].rbuff.buffer[SM[i].rbuff.front].sequence_number);
-
-    
-        printf("rpkt is not  NULL\n");
-        printf("rpkt->sequence_number is %d\n", rpkt1.sequence_number);
-        printf("rpkt->type is %c\n", rpkt1.type);
     printf("rpkt->data is %s\n", rpkt1.data);
+    printf(" SM[i].rbuff.size is %d\n", SM[i].rbuff.size);
+    for(int j=0;j<MAX_BUFFER_SIZE;j++)
+    {
+        printf("SM[i].rbuff.buffer[j]->data is %s\n", SM[i].rbuff.buffer[j].data);
+    }
     // SM[i].rbuff.buffer[SM[i].rbuff.front] = NULL;
     SM[i].rbuff.front = (SM[i].rbuff.front + 1) % MAX_BUFFER_SIZE;
     strcpy((char *)buf, rpkt1.data);
+    V(sem_SM2);
     V(sem_SM);
     // return no of bytes received
     return len;

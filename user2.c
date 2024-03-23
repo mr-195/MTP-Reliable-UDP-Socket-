@@ -11,8 +11,8 @@
 #include <signal.h>
 
 #include "mysock.h"
-#define PORT_1 8000
-#define PORT_2 8001
+#define PORT_1 8003
+#define PORT_2 8004
 #define MAX_MSG_LEN 100
 
 int main()
